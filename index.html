@@ -16,7 +16,9 @@
     <div class="app-shell">
       <aside class="side-panel" aria-label="오늘의 나비 상태">
         <div class="brand">
-          <span class="brand-mark" aria-hidden="true">N</span>
+          <span class="brand-mark" aria-hidden="true">
+            <img src="./assets/nabi-face.png" alt="" />
+          </span>
           <div>
             <p class="eyebrow">Hello Nabiya</p>
             <h1>안녕 나비야</h1>
@@ -41,7 +43,6 @@
             <span class="pulse-dot"></span>
             <span id="bondLabel">유대감 42%</span>
           </div>
-          <img src="./assets/nabi.png" alt="앉아 있는 주황색 고양이 나비" />
           <p id="catMood">오늘은 천천히 마음을 확인해볼게요.</p>
         </section>
 
@@ -215,6 +216,11 @@
           </div>
         </section>
       </main>
+    </div>
+
+    <div class="nabi-walker" id="nabiWalker" aria-hidden="true">
+      <img id="nabiWalkerImage" src="./assets/nabi.png" data-still="./assets/nabi.png" data-walk="./assets/nabi.gif" alt="" />
+      <span class="nabi-bubble" id="nabiBubble">나비가 산책 중이에요.</span>
     </div>
 
     <script src="./app.js" type="module"></script>

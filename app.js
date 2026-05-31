@@ -59,11 +59,19 @@ const els = {
   saveFootprint: document.querySelector("#saveFootprint"),
   skipFootprint: document.querySelector("#skipFootprint"),
   footprintList: document.querySelector("#footprintList"),
+  nabiWalker: document.querySelector("#nabiWalker"),
+  nabiWalkerImage: document.querySelector("#nabiWalkerImage"),
+  nabiBubble: document.querySelector("#nabiBubble"),
 };
+
+let nabiPosition = { x: 170, y: 230 };
+let nabiWalkTimer = null;
+let nabiBubbleTimer = null;
 
 bindEvents();
 render();
 registerServiceWorker();
+initNabiWalker();
 await initializeAuth();
 
 function bindEvents() {
@@ -83,7 +91,10 @@ function bindEvents() {
 
   els.quickActions.addEventListener("click", (event) => {
     const button = event.target.closest("button[data-prompt]");
-    if (button) receiveUserMessage(button.dataset.prompt);
+    if (button) {
+      moveNabiNear(button, "여기 앉아서 들어볼게.");
+      receiveUserMessage(button.dataset.prompt);
+    }
   });
 
   els.resetDay.addEventListener("click", () => {
@@ -160,6 +171,7 @@ async function signOut() {
 }
 
 function receiveUserMessage(message) {
+  moveNabiNear(els.messageInput, "나비가 가까이 왔어요.");
   state.messages.push({ role: "user", text: message });
   const context = analyzeMessage(message);
   updateDayContext(context);
@@ -283,6 +295,7 @@ async function saveFootprint() {
 
   state.footprints = [footprint, ...state.footprints.filter((item) => item.footprint_date !== footprint.footprint_date)].slice(0, 14);
   state.footprintDraft = null;
+  moveNabiNear(els.saveFootprint, "발자국 남겼다.");
   addCatMessage(authSession ? "오늘 발자국을 나비의 기억에 남겼어." : "오늘 발자국을 이 기기에 남겼어. 로그인하면 나비가 다른 기기에서도 기억할 수 있어.");
   persist();
   await syncToCloud();
@@ -290,6 +303,7 @@ async function saveFootprint() {
 }
 
 function skipFootprint() {
+  moveNabiToQuietSpot("괜찮아.");
   state.footprintDraft = null;
   addCatMessage("좋아, 오늘은 그냥 지나가도 괜찮아. 나비는 여기 있을게.");
   persist();
@@ -402,6 +416,83 @@ function renderFootprints() {
 function switchView(viewName) {
   els.tabs.forEach((tab) => tab.classList.toggle("is-active", tab.dataset.view === viewName));
   Object.entries(els.views).forEach(([name, view]) => view.classList.toggle("is-active", name === viewName));
+  const activeTab = [...els.tabs].find((tab) => tab.dataset.view === viewName);
+  if (activeTab) moveNabiNear(activeTab, viewName === "footprints" ? "기억 보러 갈까?" : "여기 있을게.");
+}
+
+function initNabiWalker() {
+  if (!els.nabiWalker) return;
+  requestAnimationFrame(() => {
+    moveNabiNear(document.querySelector(".cat-stage"), "나비가 산책 중이에요.", { instant: true });
+    scheduleNabiWalk();
+  });
+  window.addEventListener("resize", () => moveNabiToQuietSpot());
+}
+
+function scheduleNabiWalk() {
+  window.clearTimeout(nabiWalkTimer);
+  nabiWalkTimer = window.setTimeout(() => {
+    moveNabiToQuietSpot();
+    scheduleNabiWalk();
+  }, 7000 + Math.random() * 5000);
+}
+
+function moveNabiNear(target, bubbleText = "", options = {}) {
+  if (!els.nabiWalker || !target) return;
+  const rect = target.getBoundingClientRect();
+  const walkerWidth = els.nabiWalker.getBoundingClientRect().width || 140;
+  const x = clamp(rect.left + rect.width / 2 - walkerWidth / 2, 14, window.innerWidth - walkerWidth - 14);
+  const y = clamp(rect.top - walkerWidth * 0.56, 86, window.innerHeight - walkerWidth - 18);
+  setNabiPosition(x, y, bubbleText, options);
+}
+
+function moveNabiToQuietSpot(bubbleText = "") {
+  if (!els.nabiWalker) return;
+  const walkerWidth = els.nabiWalker.getBoundingClientRect().width || 140;
+  const x = clamp(28 + Math.random() * (window.innerWidth - walkerWidth - 56), 14, window.innerWidth - walkerWidth - 14);
+  const y = clamp(130 + Math.random() * (window.innerHeight - walkerWidth - 180), 86, window.innerHeight - walkerWidth - 18);
+  setNabiPosition(x, y, bubbleText || randomNabiBubble());
+}
+
+function setNabiPosition(x, y, bubbleText = "", options = {}) {
+  const previousX = nabiPosition.x;
+  nabiPosition = { x, y };
+  const facing = x < previousX ? -1 : 1;
+  els.nabiWalker.style.setProperty("--nabi-x", `${x}px`);
+  els.nabiWalker.style.setProperty("--nabi-y", `${y}px`);
+  els.nabiWalker.style.setProperty("--nabi-facing", String(facing));
+  els.nabiWalker.classList.toggle("is-walking", !options.instant);
+  setNabiSprite(!options.instant);
+  window.setTimeout(() => {
+    els.nabiWalker.classList.remove("is-walking");
+    setNabiSprite(false);
+  }, options.instant ? 0 : 1800);
+  showNabiBubble(bubbleText);
+}
+
+function setNabiSprite(isWalking) {
+  if (!els.nabiWalkerImage) return;
+  const nextSrc = isWalking ? els.nabiWalkerImage.dataset.walk : els.nabiWalkerImage.dataset.still;
+  if (nextSrc && !els.nabiWalkerImage.src.endsWith(nextSrc.replace("./", ""))) {
+    els.nabiWalkerImage.src = nextSrc;
+  }
+}
+
+function showNabiBubble(text) {
+  if (!text) return;
+  els.nabiBubble.textContent = text;
+  els.nabiWalker.classList.add("has-bubble");
+  window.clearTimeout(nabiBubbleTimer);
+  nabiBubbleTimer = window.setTimeout(() => els.nabiWalker.classList.remove("has-bubble"), 2300);
+}
+
+function randomNabiBubble() {
+  const lines = ["여기서 잠깐 앉을게.", "나비가 둘러보는 중.", "오늘 리듬을 살피고 있어.", "천천히 해도 괜찮아."];
+  return lines[Math.floor(Math.random() * lines.length)];
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
 }
 
 function persist() {

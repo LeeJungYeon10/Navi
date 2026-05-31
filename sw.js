@@ -1,4 +1,4 @@
-const CACHE_NAME = "hello-nabiya-pwa-v4";
+const CACHE_NAME = "hello-nabiya-pwa-v9";
 const ASSETS = [
   "./",
   "./index.html",
@@ -7,7 +7,9 @@ const ASSETS = [
   "./supabase-client.js",
   "./supabase-config.js",
   "./manifest.webmanifest",
+  "./assets/nabi-face.png",
   "./assets/nabi.png",
+  "./assets/nabi.gif",
 ];
 
 self.addEventListener("install", (event) => {
