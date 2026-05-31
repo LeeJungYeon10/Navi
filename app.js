@@ -67,6 +67,14 @@ const els = {
 let nabiPosition = { x: 170, y: 230 };
 let nabiWalkTimer = null;
 let nabiBubbleTimer = null;
+let nabiStopTimer = null;
+let nabiFrameTimer = null;
+let nabiFrameIndex = 0;
+const NABI_FRAME_MS = 80;
+const NABI_WALK_FRAMES = Array.from(
+  { length: 22 },
+  (_, index) => `./assets/nabi-frames/nabi-${String(index + 1).padStart(2, "0")}.png`,
+);
 
 bindEvents();
 render();
@@ -460,7 +468,8 @@ function setNabiPosition(x, y, bubbleText = "", options = {}) {
   els.nabiWalker.style.setProperty("--nabi-y", `${y}px`);
   els.nabiWalker.classList.toggle("is-walking", !options.instant);
   setNabiSprite(!options.instant);
-  window.setTimeout(() => {
+  window.clearTimeout(nabiStopTimer);
+  nabiStopTimer = window.setTimeout(() => {
     els.nabiWalker.classList.remove("is-walking");
     setNabiSprite(false);
   }, options.instant ? 0 : 1800);
@@ -469,10 +478,28 @@ function setNabiPosition(x, y, bubbleText = "", options = {}) {
 
 function setNabiSprite(isWalking) {
   if (!els.nabiWalkerImage) return;
-  const nextSrc = isWalking ? els.nabiWalkerImage.dataset.walk : els.nabiWalkerImage.dataset.still;
-  if (nextSrc && !els.nabiWalkerImage.src.endsWith(nextSrc.replace("./", ""))) {
-    els.nabiWalkerImage.src = nextSrc;
+  if (isWalking) {
+    startNabiFrameAnimation();
+    return;
   }
+  stopNabiFrameAnimation();
+}
+
+function startNabiFrameAnimation() {
+  if (!els.nabiWalkerImage || nabiFrameTimer) return;
+  nabiFrameIndex = 0;
+  els.nabiWalkerImage.src = NABI_WALK_FRAMES[nabiFrameIndex];
+  nabiFrameTimer = window.setInterval(() => {
+    nabiFrameIndex = (nabiFrameIndex + 1) % NABI_WALK_FRAMES.length;
+    els.nabiWalkerImage.src = NABI_WALK_FRAMES[nabiFrameIndex];
+  }, NABI_FRAME_MS);
+}
+
+function stopNabiFrameAnimation() {
+  window.clearInterval(nabiFrameTimer);
+  nabiFrameTimer = null;
+  nabiFrameIndex = 0;
+  els.nabiWalkerImage.src = els.nabiWalkerImage.dataset.still || NABI_WALK_FRAMES[0];
 }
 
 function showNabiBubble(text) {
