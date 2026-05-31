@@ -455,12 +455,9 @@ function moveNabiToQuietSpot(bubbleText = "") {
 }
 
 function setNabiPosition(x, y, bubbleText = "", options = {}) {
-  const previousX = nabiPosition.x;
   nabiPosition = { x, y };
-  const facing = x < previousX ? -1 : 1;
   els.nabiWalker.style.setProperty("--nabi-x", `${x}px`);
   els.nabiWalker.style.setProperty("--nabi-y", `${y}px`);
-  els.nabiWalker.style.setProperty("--nabi-facing", String(facing));
   els.nabiWalker.classList.toggle("is-walking", !options.instant);
   setNabiSprite(!options.instant);
   window.setTimeout(() => {
