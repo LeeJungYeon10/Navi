@@ -1,0 +1,17 @@
+{
+  "name": "안녕 나비야",
+  "short_name": "나비야",
+  "description": "대화하는 온라인 반려묘 건강 동반자",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f7f3ea",
+  "theme_color": "#f6c96f",
+  "icons": [
+    {
+      "src": "./assets/nabi.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
