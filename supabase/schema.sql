@@ -27,8 +27,21 @@ create table if not exists public.daily_footprints (
   unique (user_id, footprint_date)
 );
 
+-- 세션 시간 기록 테이블 (화면 오픈 시간 보너스용)
+-- Notion 설계: 패널티 없는 보너스 방식 (5분↑+상호작용4↑→+1, 10분↑+상호작용6↑→+2)
+create table if not exists public.user_sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  session_date date not null,
+  duration_seconds integer not null default 0,
+  interaction_score integer not null default 0,
+  bond_bonus integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
 alter table public.profiles enable row level security;
 alter table public.daily_footprints enable row level security;
+alter table public.user_sessions enable row level security;
 
 drop policy if exists "profiles_select_own" on public.profiles;
 drop policy if exists "profiles_insert_own" on public.profiles;
@@ -67,4 +80,17 @@ create policy "daily_footprints_update_own"
 on public.daily_footprints for update
 to authenticated
 using ((select auth.uid()) is not null and (select auth.uid()) = user_id)
+with check ((select auth.uid()) is not null and (select auth.uid()) = user_id);
+
+drop policy if exists "user_sessions_select_own" on public.user_sessions;
+drop policy if exists "user_sessions_insert_own" on public.user_sessions;
+
+create policy "user_sessions_select_own"
+on public.user_sessions for select
+to authenticated
+using ((select auth.uid()) is not null and (select auth.uid()) = user_id);
+
+create policy "user_sessions_insert_own"
+on public.user_sessions for insert
+to authenticated
 with check ((select auth.uid()) is not null and (select auth.uid()) = user_id);

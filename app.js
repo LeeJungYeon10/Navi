@@ -1,7 +1,71 @@
 import { getSupabase, isSupabaseConfigured } from "./supabase-client.js";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./supabase-config.js";
 
 const STORAGE_KEY = "hello-nabiya-state-v3";
 const supabase = await getSupabase();
+
+// ── 세션 시간 추적 (화면 오픈 시간 보너스용) ──────────────────────────
+// Notion 설계: 패널티 없는 순수 보너스 방식
+// 5분 이상 + 상호작용 4점 이상 → 유대감 +1
+// 10분 이상 + 상호작용 6점 이상 → 유대감 +2
+// 그 외(5분 미만 or 상호작용 부족) → 0 (패널티 없음)
+let _sessionStart = null;
+let _totalSessionSec = 0;
+let _interactionScore = 0; // 메시지: +1, 루틴 완료: +2, 발자국 저장: +2
+
+function _startSession() {
+  if (_sessionStart === null) _sessionStart = Date.now();
+}
+
+function _endSession() {
+  if (_sessionStart !== null) {
+    _totalSessionSec += Math.floor((Date.now() - _sessionStart) / 1000);
+    _sessionStart = null;
+  }
+}
+
+function _getSessionBonus() {
+  _endSession();
+  const minutes = _totalSessionSec / 60;
+  if (minutes >= 10 && _interactionScore >= 6) return 2;
+  if (minutes >= 5 && _interactionScore >= 4) return 1;
+  return 0; // 패널티 없음
+}
+
+async function _applySessionBonusAndSave() {
+  const bonus = _getSessionBonus();
+  if (bonus > 0) {
+    addBond(bonus);
+    persist();
+  }
+  if (authSession && supabase) {
+    try {
+      const userId = authSession.user.id;
+      await supabase.from("user_sessions").insert({
+        user_id: userId,
+        session_date: getToday(),
+        duration_seconds: _totalSessionSec,
+        interaction_score: _interactionScore,
+        bond_bonus: bonus,
+      });
+    } catch {
+      // 저장 실패해도 앱 동작에는 영향을 주지 않는다.
+    }
+  }
+  // 세션 리셋
+  _totalSessionSec = 0;
+  _interactionScore = 0;
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    _startSession();
+  } else {
+    _applySessionBonusAndSave();
+  }
+});
+window.addEventListener("beforeunload", () => _applySessionBonusAndSave());
+_startSession(); // 앱 로드 시 세션 시작
 
 const labels = {
   mood: { calm: "안정", tired: "피곤", anxious: "불안", sad: "가라앉음", happy: "좋음", mixed: "복합적", unknown: "미입력" },
@@ -10,15 +74,24 @@ const labels = {
   routine: { breathing: "3분 호흡", walk: "10분 걷기", water: "물 마시기", stretch: "가벼운 스트레칭", journal: "한 문장 적기", rest: "쉬기" },
 };
 
+const DAILY_BOND_LIMIT = 12;
+const NABI_LEVELS = [
+  { level: 1, minBond: 0, name: "새끼 나비", copy: "처음 만난 나비가 조심스럽게 곁에 앉아 있어요." },
+  { level: 2, minBond: 30, name: "어린 나비", copy: "나비가 조금 더 편하게 먼저 다가오고 있어요." },
+  { level: 3, minBond: 65, name: "청년 나비", copy: "나비가 오늘의 패턴을 더 또렷하게 기억하려고 해요." },
+];
+
 const initialState = {
   profile: { name: "", goal: "정서적 안정", tone: "다정하고 차분하게", focus: [] },
   day: { sleepHours: null, activityMinutes: null, mood: null, energy: "보통", bond: 42, routines: [] },
+  nabi: { dailyBondDate: null, dailyBondGain: 0, lastVisitDate: null, streak: 0, lastStreakBonusDate: null, lastLevelMessage: 1 },
   messages: [{ role: "cat", text: "안녕, 나는 나비야. 오늘 잠은 어땠고 몸은 어느 정도 움직였는지 편하게 말해줘." }],
   footprintDraft: null,
   footprints: [],
 };
 
 const state = loadState();
+markDailyVisit();
 let authSession = null;
 let syncTimer = null;
 
@@ -46,6 +119,7 @@ const els = {
   insightList: document.querySelector("#insightList"),
   catMood: document.querySelector("#catMood"),
   bondLabel: document.querySelector("#bondLabel"),
+  nabiLevelLabel: document.querySelector("#nabiLevelLabel"),
   resetDay: document.querySelector("#resetDay"),
   profileForm: document.querySelector("#profileForm"),
   completeRoutine: document.querySelector("#completeRoutine"),
@@ -132,7 +206,8 @@ function bindEvents() {
   els.completeRoutine.addEventListener("click", () => {
     const checked = [...document.querySelectorAll(".routine-list input:checked")].map((input) => input.value);
     state.day.routines = checked;
-    state.day.bond = Math.min(100, state.day.bond + checked.length * 4);
+    addBond(checked.length * 4);
+    if (checked.length > 0) _interactionScore += 2; // 루틴 완료 시 상호작용 점수 +2
     addCatMessage(makeRoutineReply(checked));
     state.footprintDraft = buildFootprintDraft();
     switchView("chat");
@@ -178,15 +253,50 @@ async function signOut() {
   renderAuth(null);
 }
 
-function receiveUserMessage(message) {
+async function receiveUserMessage(message) {
+  _interactionScore += 1; // 메시지 전송 시 상호작용 점수 +1
   moveNabiNear(els.messageInput, "나비가 가까이 왔어요.");
   state.messages.push({ role: "user", text: message });
   const context = analyzeMessage(message);
   updateDayContext(context);
-  state.messages.push({ role: "cat", text: makeCatReply(context) });
+
+  // 로딩 말풍선
+  const loadingMsg = { role: "cat", text: "···", loading: true };
+  state.messages.push(loadingMsg);
+  render();
+
+  // LLM 호출 (실패 시 rule-based fallback)
+  const reply = await callNabi(state.messages, context);
+
+  // 로딩 메시지 교체
+  const idx = state.messages.indexOf(loadingMsg);
+  if (idx !== -1) state.messages[idx] = { role: "cat", text: reply };
+  else state.messages.push({ role: "cat", text: reply });
+
   state.footprintDraft = buildFootprintDraft(context);
   persist();
   render();
+}
+
+async function callNabi(messages, context) {
+  if (!isSupabaseConfigured()) return makeCatReply(context);
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/nabi-chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+        "apikey": SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ messages, context }),
+      signal: AbortSignal.timeout(12000), // 12초 타임아웃
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data.text || makeCatReply(context);
+  } catch {
+    return makeCatReply(context); // 네트워크 오류 시 rule-based로 대체
+  }
 }
 
 function analyzeMessage(message) {
@@ -216,7 +326,7 @@ function updateDayContext(context) {
   else if (context.mood === "anxious") state.day.energy = "주의";
 
   const contextPoints = [context.sleepHours, context.activityMinutes, context.mood].filter(Boolean).length;
-  state.day.bond = Math.min(100, state.day.bond + Math.max(2, contextPoints * 3));
+  addBond(Math.max(2, contextPoints * 3));
 }
 
 function buildFootprintDraft(context = {}) {
@@ -293,6 +403,8 @@ function makeRoutineReply(checked) {
 
 async function saveFootprint() {
   if (!state.footprintDraft) return;
+  _interactionScore += 2; // 발자국 저장 시 상호작용 점수 +2
+  addBond(3);
   const footprint = {
     ...state.footprintDraft,
     id: state.footprintDraft.id || crypto.randomUUID(),
@@ -322,6 +434,61 @@ function addCatMessage(text) {
   state.messages.push({ role: "cat", text });
 }
 
+function addBond(points) {
+  if (!points || points <= 0) return 0;
+  const today = getToday();
+  if (state.nabi.dailyBondDate !== today) {
+    state.nabi.dailyBondDate = today;
+    state.nabi.dailyBondGain = 0;
+  }
+
+  const beforeLevel = getNabiGrowth().level;
+  const remaining = Math.max(0, DAILY_BOND_LIMIT - state.nabi.dailyBondGain);
+  const applied = Math.min(points, remaining, 100 - state.day.bond);
+  if (applied <= 0) return 0;
+
+  state.day.bond = Math.min(100, state.day.bond + applied);
+  state.nabi.dailyBondGain += applied;
+
+  const growth = getNabiGrowth();
+  if (growth.level > beforeLevel && state.nabi.lastLevelMessage !== growth.level) {
+    state.nabi.lastLevelMessage = growth.level;
+    addCatMessage(`${growth.name}가 되었어. 나비가 너랑 조금 더 가까워진 것 같아.`);
+  }
+
+  return applied;
+}
+
+function getNabiGrowth() {
+  const bond = Number(state.day.bond) || 0;
+  return [...NABI_LEVELS].reverse().find((level) => bond >= level.minBond) || NABI_LEVELS[0];
+}
+
+function markDailyVisit() {
+  const today = getToday();
+  if (state.nabi.lastVisitDate === today) return;
+
+  const previousVisit = state.nabi.lastVisitDate;
+  state.nabi.streak = isYesterday(previousVisit, today) ? state.nabi.streak + 1 : 1;
+  state.nabi.lastVisitDate = today;
+
+  if (state.nabi.streak >= 7 && state.nabi.lastStreakBonusDate !== today) {
+    state.nabi.lastStreakBonusDate = today;
+    addBond(2);
+    addCatMessage("7일째 들러줬네. 나비가 이 리듬을 조용히 기억해둘게.");
+  }
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function isYesterday(dateValue, todayValue) {
+  if (!dateValue) return false;
+  const date = new Date(`${dateValue}T00:00:00`);
+  const today = new Date(`${todayValue}T00:00:00`);
+  date.setDate(date.getDate() + 1);
+  return date.toISOString().slice(0, 10) === today.toISOString().slice(0, 10);
+}
+
 function render() {
   renderAuth(authSession);
   renderChat();
@@ -349,24 +516,30 @@ function renderAuth(session, fallbackMessage) {
 
 function renderChat() {
   els.chatLog.innerHTML = state.messages
-    .map((message) => `<li class="message ${message.role}"><strong>${message.role === "cat" ? "나비" : "나"}</strong>${escapeHtml(message.text)}</li>`)
+    .map((message) =>
+      `<li class="message ${message.role}${message.loading ? " is-loading" : ""}">` +
+      `<strong>${message.role === "cat" ? "나비" : "나"}</strong>` +
+      `${escapeHtml(message.text)}</li>`
+    )
     .join("");
   els.chatLog.scrollTop = els.chatLog.scrollHeight;
 }
 
 function renderMetrics() {
+  const growth = getNabiGrowth();
   els.sleepMetric.textContent = state.day.sleepHours === null ? "미입력" : `${state.day.sleepHours}시간`;
   els.activityMetric.textContent = state.day.activityMinutes === null ? "미입력" : `${state.day.activityMinutes}분`;
   els.moodMetric.textContent = state.day.mood || "미입력";
   els.energyMetric.textContent = state.day.energy;
   els.bondLabel.textContent = `유대감 ${state.day.bond}%`;
+  if (els.nabiLevelLabel) els.nabiLevelLabel.textContent = `Lv.${growth.level} ${growth.name}`;
   const moodCopy = {
     낮음: "오늘은 나비가 옆에서 속도를 낮춰줄게요.",
     주의: "긴장 신호가 보여요. 잠깐 숨을 고르자요.",
     좋음: "오늘 리듬이 꽤 좋아요. 나비도 편안해요.",
     보통: "오늘은 천천히 마음을 확인해볼게요.",
   };
-  els.catMood.textContent = moodCopy[state.day.energy] || moodCopy["보통"];
+  els.catMood.textContent = `${growth.copy} ${moodCopy[state.day.energy] || moodCopy["보통"]}`;
 }
 
 function renderInsights() {

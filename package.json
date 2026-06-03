@@ -1,0 +1,29 @@
+{
+  "name": "navi",
+  "version": "1.0.0",
+  "description": "Notion 기획서 기반 1차 웹앱 프로토타입입니다. Google 로그인과 Supabase 사용자별 저장을 붙일 수 있도록 준비되어 있습니다.",
+  "main": "app.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "check": "node --check app.js && node --check sync-notion.js",
+    "sync:notion": "node sync-notion.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LeeJungYeon10/Navi.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/LeeJungYeon10/Navi/issues"
+  },
+  "homepage": "https://github.com/LeeJungYeon10/Navi#readme",
+  "dependencies": {
+    "@notionhq/client": "^5.22.0",
+    "dotenv": "^17.4.2"
+  }
+}

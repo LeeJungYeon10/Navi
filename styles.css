@@ -178,6 +178,12 @@ h2 {
   font-weight: 800;
 }
 
+.status-divider {
+  width: 1px;
+  height: 14px;
+  background: rgba(188, 115, 34, 0.22);
+}
+
 .pulse-dot {
   width: 9px;
   height: 9px;
