@@ -1,29 +1,30 @@
 {
-  "name": "nabi",
-  "version": "0.1.0",
-  "private": true,
+  "name": "navi",
+  "version": "1.0.0",
+  "description": "안녕 나비야 - Notion 기획서 기반 Vanilla PWA. Google 로그인과 Supabase 사용자별 저장, Gemini 기반 나비 대화를 지원합니다.",
+  "main": "app.js",
+  "directories": {
+    "doc": "docs"
+  },
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "check": "node --check app.js && node --check sync-notion.js",
+    "sync:notion": "node sync-notion.js",
+    "dev": "python -m http.server 5180"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LeeJungYeon10/Navi.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/LeeJungYeon10/Navi/issues"
+  },
+  "homepage": "https://github.com/LeeJungYeon10/Navi#readme",
   "dependencies": {
-    "next": "14.2.5",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "@supabase/supabase-js": "^2.45.0",
-    "@supabase/ssr": "^0.5.1"
-  },
-  "devDependencies": {
-    "typescript": "^5.5.0",
-    "@types/node": "^20.14.0",
-    "@types/react": "^18.3.0",
-    "@types/react-dom": "^18.3.0",
-    "tailwindcss": "^3.4.0",
-    "postcss": "^8.4.0",
-    "autoprefixer": "^10.4.0",
-    "eslint": "^8.57.0",
-    "eslint-config-next": "14.2.5"
+    "@notionhq/client": "^5.22.0",
+    "dotenv": "^17.4.2"
   }
 }
