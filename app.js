@@ -94,6 +94,7 @@ const state = loadState();
 markDailyVisit();
 let authSession = null;
 let syncTimer = null;
+let dismissWelcome = () => {};
 
 const els = {
   tabs: document.querySelectorAll(".tab"),
@@ -154,7 +155,60 @@ bindEvents();
 render();
 registerServiceWorker();
 initNabiWalker();
+initWelcome();
 await initializeAuth();
+
+function initWelcome() {
+  const screen = document.querySelector("#welcomeScreen");
+  if (!screen) return;
+  const textEl = document.querySelector("#welcomeText");
+  const cursor = document.querySelector("#welcomeCursor");
+  const form = document.querySelector("#welcomeForm");
+  const input = document.querySelector("#welcomeInput");
+  const skip = document.querySelector("#welcomeSkip");
+  const google = document.querySelector("#welcomeGoogle");
+
+  const name = (state.profile.name || "").trim();
+  const fullText = `${name ? name + "야, " : ""}오늘 나는 널 만나서 기분이 좋아.\n너의 기분은 어때?`;
+  let index = 0;
+  let typing = true;
+
+  function type() {
+    if (!typing || !textEl) return;
+    if (index < fullText.length) {
+      textEl.innerHTML += fullText[index] === "\n" ? "<br>" : escapeHtml(fullText[index]);
+      index += 1;
+      window.setTimeout(type, 90);
+    }
+  }
+  window.setTimeout(type, 700);
+
+  function dismiss() {
+    typing = false;
+    screen.classList.add("is-dismissed");
+    window.setTimeout(() => screen.remove(), 700);
+  }
+  dismissWelcome = dismiss;
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const message = input.value.trim();
+    dismiss();
+    switchView("chat");
+    if (message) window.setTimeout(() => receiveUserMessage(message), 350);
+  });
+
+  if (google) {
+    if (!isSupabaseConfigured()) {
+      google.disabled = true;
+      google.title = "Supabase 설정 후 사용할 수 있어요.";
+    }
+    google.addEventListener("click", () => signInWithGoogle());
+  }
+
+  skip.addEventListener("click", dismiss);
+  if (cursor) input.addEventListener("focus", () => (cursor.style.display = "none"));
+}
 
 function bindEvents() {
   els.tabs.forEach((tab) => tab.addEventListener("click", () => switchView(tab.dataset.view)));
@@ -225,12 +279,18 @@ async function initializeAuth() {
   const { data } = await supabase.auth.getSession();
   authSession = data.session;
   renderAuth(authSession);
-  if (authSession) await hydrateFromCloud();
+  if (authSession) {
+    dismissWelcome();
+    await hydrateFromCloud();
+  }
 
   supabase.auth.onAuthStateChange(async (_event, session) => {
     authSession = session;
     renderAuth(authSession);
-    if (authSession) await hydrateFromCloud();
+    if (authSession) {
+      dismissWelcome();
+      await hydrateFromCloud();
+    }
   });
 }
 
