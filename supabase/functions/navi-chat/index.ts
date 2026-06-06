@@ -110,7 +110,7 @@ serve(async (req: Request) => {
 
     return json({ text });
   } catch (error) {
-    console.error("nabi-chat error:", error);
+    console.error("navi-chat error:", error);
     return json({
       text: "나비가 잠깐 대답을 못 불러왔어. 그래도 오늘 상태는 발자국으로 조용히 정리해볼게.",
     });

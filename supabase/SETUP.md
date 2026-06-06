@@ -103,7 +103,7 @@ npx supabase secrets set GEMINI_API_KEY=여기에_발급받은_키
 ### 4-5. Edge Function 배포
 
 ```bash
-npx supabase functions deploy nabi-chat --no-verify-jwt
+npx supabase functions deploy navi-chat --no-verify-jwt
 ```
 
 > `--no-verify-jwt` 옵션은 익명 사용자도 Edge Function을 호출할 수 있게 합니다.
@@ -113,7 +113,7 @@ npx supabase functions deploy nabi-chat --no-verify-jwt
 
 ```bash
 curl -X POST \
-  https://nackdrgjlmglvcyqmsxg.supabase.co/functions/v1/nabi-chat \
+  https://qfzisbufklmtqlmzzgcb.supabase.co/functions/v1/navi-chat \
   -H "Content-Type: application/json" \
   -H "apikey: 여기에_anon_key" \
   -d '{"messages":[{"role":"user","text":"오늘 많이 피곤해"}]}'
@@ -141,7 +141,7 @@ python -m http.server 5173
 - [ ] Redirect URL 등록 (localhost + 배포 URL)
 - [ ] Gemini API 키 발급
 - [ ] `supabase secrets set GEMINI_API_KEY=...`
-- [ ] `supabase functions deploy nabi-chat --no-verify-jwt`
+- [ ] `supabase functions deploy navi-chat --no-verify-jwt`
 - [ ] curl로 Edge Function 동작 확인
 
 ---

@@ -341,7 +341,7 @@ async function receiveUserMessage(message) {
 async function callNabi(messages, context) {
   if (!isSupabaseConfigured()) return makeCatReply(context);
   try {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/nabi-chat`, {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/navi-chat`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

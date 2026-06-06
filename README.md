@@ -1,56 +1,86 @@
-# 안녕 나비야 MVP PWA
+# 안녕나비야 — Vanilla JS → Next.js 14 전환
 
-Notion 기획서 기반 1차 웹앱 프로토타입입니다. Google 로그인과 Supabase 사용자별 저장을 붙일 수 있도록 준비되어 있습니다.
+> 이 스캐폴드는 "한 번에 다 갈아엎기(big-bang)"가 아니라 **위험을 쪼갠 단계적 전환**을 전제로 합니다.
+> 기존 Supabase는 그대로 재사용하고, 프론트만 Next.js로 옮깁니다.
 
-## 포함된 기능
+---
 
-- 나비와 대화하는 메인 화면
-- 대화 문장에서 수면, 활동, 감정 키워드 추출
-- 오늘 요약과 피드백 자동 갱신
-- 기본 온보딩 프로필 저장
-- 간단한 루틴 체크
-- 로컬 저장 및 PWA manifest/service worker
-- Supabase Auth Google 로그인 준비
-- Supabase RLS 기반 사용자별 오늘의 발자국 요약 저장 준비
+## 0. 왜 단계적 전환인가
 
-## 실행
+혼자 개발하는 1인 프로젝트에서 가장 흔한 실패는 "동작하던 앱을 멈추고 몇 주간 전체를 다시 짜다가 지치는 것"입니다.
+그래서 **기존 Vanilla 앱을 살려둔 채**, 새 Next.js 앱을 옆에서 키워 화면 단위로 옮겨 붙입니다.
 
-정적 파일 앱이라 별도 빌드 없이 실행할 수 있습니다.
+| 단계 | 내용 | 기존 앱 |
+|---|---|---|
+| **Phase 0** | Next.js 프로젝트 초기화 + Supabase 연결 + 세션 추적 포팅 | 그대로 운영 |
+| **Phase 1** | 대화 화면 1개만 Next.js로 포팅 (핵심 경험) | 그대로 운영 |
+| **Phase 2** | 유대감/성장/발자국 로직을 API Route로 이전 | 점진 종료 |
+| **Phase 3** | 꾸미기·다묘 등 신규 기능은 처음부터 Next.js에서 | 폐기 |
 
-```powershell
-python -m http.server 5173
+핵심 원칙: **DB(Supabase) 스키마는 건드리지 않는다.** 프론트만 바뀌므로 데이터는 안전합니다.
+
+---
+
+## 1. 초기화
+
+```bash
+# 1) 프로젝트 생성 (이 스캐폴드를 빈 폴더에 풀거나, 아래로 새로 생성 후 파일 복사)
+npx create-next-app@latest nabi --typescript --tailwind --app --eslint
+
+cd nabi
+
+# 2) Supabase 클라이언트 (App Router용 최신 패키지)
+npm install @supabase/supabase-js @supabase/ssr
+
+# 3) (선택) PWA
+npm install next-pwa
 ```
 
-그 다음 브라우저에서 `http://localhost:5173/Navi/`를 엽니다.
+그 다음 이 스캐폴드의 `app/`, `lib/`, `components/`, `middleware.ts` 를 덮어쓰면 됩니다.
 
-## Supabase 설정
+---
 
-1. Supabase SQL Editor에서 `supabase/schema.sql` 내용을 실행합니다.
-2. Supabase Dashboard에서 `Project Settings > API`로 이동합니다.
-3. `anon public` key를 복사합니다.
-4. `supabase-config.js`의 `SUPABASE_ANON_KEY`에 붙여넣습니다.
-5. `Authentication > Providers > Google`에서 Google provider를 켭니다.
-6. `Authentication > URL Configuration`에 로컬/배포 URL을 Redirect URL로 추가합니다.
+## 2. 환경 변수 (`.env.local`)
 
-MVP에서는 대화 원문을 Supabase에 저장하지 않고, 사용자가 확인한 `오늘의 발자국` 요약만 저장합니다.
+기존 Vanilla 앱에서 쓰던 Supabase 값을 그대로 넣으세요.
 
-## 오늘의 발자국 데이터 모델
-
-저장 단위는 하루 1개 요약입니다.
-
-- `mood`: `calm`, `tired`, `anxious`, `sad`, `happy`, `mixed`, `unknown`
-- `sleep`: `unknown`, `poor`, `okay`, `good`
-- `activity`: `unknown`, `low`, `okay`, `good`
-- `nabi_note`: 나비가 남기는 한 줄 요약
-- `user_note`: 사용자가 선택적으로 남기는 짧은 한 줄
-- `routine`: `breathing`, `walk`, `water`, `stretch`, `journal`, `rest`
-- `routine_done`: 루틴 완료 여부
-- `bond_delta`: 오늘 유대감 변화량
-
-로컬 개발용 Redirect URL:
-
-```text
-http://localhost:5173/Navi/
+```
+NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 ```
 
-배포 후에는 실제 배포 URL도 추가해야 합니다.
+> ⚠️ service_role 키는 절대 `NEXT_PUBLIC_`에 넣지 마세요. 서버 전용입니다.
+
+---
+
+## 3. Vanilla → Next.js 매핑 (무엇이 어디로 가나)
+
+| 기존 (Vanilla) | Next.js에서 | 이 스캐폴드 파일 |
+|---|---|---|
+| `index.html` | App Router 레이아웃 + 페이지 | `app/layout.tsx`, `app/page.tsx` |
+| `app.js`의 화면 렌더링 | React 컴포넌트 | `app/page.tsx` |
+| `supabase.createClient(...)` (브라우저) | `@supabase/ssr` 브라우저 클라이언트 | `lib/supabase/client.ts` |
+| 서버에서 user 조회 | 서버 클라이언트 (쿠키 기반) | `lib/supabase/server.ts` |
+| `visibilitychange` 세션 추적 | 클라이언트 컴포넌트 | `components/SessionTracker.tsx` |
+| `updateBondSimple()` 유대감 로직 | API Route (서버에서 안전하게) | `lib/bond.ts`, `app/api/bond/route.ts` |
+| 로그인 세션 유지 | 미들웨어로 자동 갱신 | `middleware.ts` |
+
+### 가장 큰 변화 하나
+기존엔 브라우저에서 `supabase-js`로 직접 DB를 읽고 썼지만, Next.js에선 **유대감·발자국 계산 같은 "신뢰가 필요한 로직"을 API Route(서버)로 옮기는 걸** 강력 권장합니다.
+이유: 브라우저 코드는 사용자가 조작할 수 있어서, 클라이언트에서 "유대감 +100" 같은 어뷰징이 가능합니다. 서버에서 계산하면 막힙니다.
+
+---
+
+## 4. 다음 작업 (이 스캐폴드 이후)
+
+1. 기존 `app.js`의 **대화 UI 로직**을 `app/page.tsx`로 이식
+2. LLM 호출(Gemini/Claude)을 `app/api/chat/route.ts`로 신설 (스트리밍 SSE)
+3. 발자국(소프트 화폐) 적립 로직을 `lib/bond.ts` 옆에 `lib/currency.ts`로 추가
+4. 꾸미기 인벤토리 테이블을 Supabase에 추가 (`inventory`, `items`)
+
+---
+
+## 5. 배포
+
+기존 결정(지난 논의)대로 **Vercel** 권장. `git push` → 자동 배포.
+Supabase는 그대로 두므로 데이터 마이그레이션 불필요.
