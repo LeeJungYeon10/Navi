@@ -84,7 +84,7 @@ const NABI_LEVELS = [
 const initialState = {
   profile: { name: "", goal: "정서적 안정", tone: "다정하고 차분하게", focus: [] },
   day: { sleepHours: null, activityMinutes: null, mood: null, energy: "보통", bond: 42, routines: [] },
-  nabi: { dailyBondDate: null, dailyBondGain: 0, lastVisitDate: null, streak: 0, lastStreakBonusDate: null, lastLevelMessage: 1 },
+  nabi: { dailyBondDate: null, dailyBondGain: 0, lastVisitDate: null, streak: 0, lastStreakBonusDate: null, lastLevelMessage: 1, birthday: null },
   messages: [{ role: "cat", text: "안녕, 나는 나비야. 오늘 잠은 어땠고 몸은 어느 정도 움직였는지 편하게 말해줘." }],
   footprintDraft: null,
   footprints: [],
@@ -121,6 +121,7 @@ const els = {
   catMood: document.querySelector("#catMood"),
   bondLabel: document.querySelector("#bondLabel"),
   nabiLevelLabel: document.querySelector("#nabiLevelLabel"),
+  nabiAgeLabel: document.querySelector("#nabiAgeLabel"),
   resetDay: document.querySelector("#resetDay"),
   profileForm: document.querySelector("#profileForm"),
   completeRoutine: document.querySelector("#completeRoutine"),
@@ -158,9 +159,26 @@ initNabiWalker();
 initWelcome();
 await initializeAuth();
 
+function hasReturningAuth() {
+  const url = `${window.location.search}${window.location.hash}`;
+  if (/[?&#](code|access_token)=/.test(url)) return true;
+  try {
+    return Object.keys(localStorage).some((key) => key.includes("-auth-token") && localStorage.getItem(key));
+  } catch {
+    return false;
+  }
+}
+
 function initWelcome() {
   const screen = document.querySelector("#welcomeScreen");
   if (!screen) return;
+
+  // 구글 로그인 복귀 또는 기존 세션이 있으면 웰컴을 건너뛰고 바로 대시보드로
+  if (hasReturningAuth()) {
+    screen.remove();
+    return;
+  }
+
   const textEl = document.querySelector("#welcomeText");
   const cursor = document.querySelector("#welcomeCursor");
   const form = document.querySelector("#welcomeForm");
@@ -524,8 +542,38 @@ function getNabiGrowth() {
   return [...NABI_LEVELS].reverse().find((level) => bond >= level.minBond) || NABI_LEVELS[0];
 }
 
+function getCharacterAge(birthday) {
+  if (!birthday) return 0;
+  const birthDate = new Date(birthday);
+  const today = new Date();
+
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+
+  return age;
+}
+
+function getDaysTogether(birthday) {
+  if (!birthday) return 1;
+  const birthDate = new Date(`${birthday}T00:00:00`);
+  const today = new Date(`${getToday()}T00:00:00`);
+  const diff = Math.floor((today - birthDate) / 86400000);
+  return Math.max(1, diff + 1);
+}
+
+function getNabiAgeLabel() {
+  const age = getCharacterAge(state.nabi.birthday);
+  if (age >= 1) return `나비 ${age}살`;
+  return `함께 ${getDaysTogether(state.nabi.birthday)}일`;
+}
+
 function markDailyVisit() {
   const today = getToday();
+  if (!state.nabi.birthday) state.nabi.birthday = today;
   if (state.nabi.lastVisitDate === today) return;
 
   const previousVisit = state.nabi.lastVisitDate;
@@ -593,6 +641,7 @@ function renderMetrics() {
   els.energyMetric.textContent = state.day.energy;
   els.bondLabel.textContent = `유대감 ${state.day.bond}%`;
   if (els.nabiLevelLabel) els.nabiLevelLabel.textContent = `Lv.${growth.level} ${growth.name}`;
+  if (els.nabiAgeLabel) els.nabiAgeLabel.textContent = getNabiAgeLabel();
   const moodCopy = {
     낮음: "오늘은 나비가 옆에서 속도를 낮춰줄게요.",
     주의: "긴장 신호가 보여요. 잠깐 숨을 고르자요.",
