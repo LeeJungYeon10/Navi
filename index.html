@@ -60,6 +60,29 @@
       <button class="welcome-skip" id="welcomeSkip" type="button">로그인 없이 둘러보기</button>
     </section>
 
+    <section class="welcome-screen setup-screen is-hidden" id="setupScreen" aria-label="나비와 첫 설정">
+      <div class="welcome-glow welcome-glow--one" aria-hidden="true"></div>
+      <div class="welcome-glow welcome-glow--two" aria-hidden="true"></div>
+
+      <div class="welcome-cat">
+        <img class="cat-breathing" src="./assets/nabi.png" alt="나비" />
+      </div>
+
+      <div class="welcome-greeting">
+        <h1 id="setupText"></h1>
+      </div>
+
+      <form class="welcome-input" id="setupForm">
+        <label class="sr-only" for="setupInput">설정 입력</label>
+        <input id="setupInput" type="text" autocomplete="off" placeholder="여기에 적어주세요." />
+        <button type="submit" aria-label="다음">
+          <span class="material-symbols-outlined">arrow_forward</span>
+        </button>
+      </form>
+
+      <button class="welcome-skip" id="setupSkip" type="button">건너뛰기</button>
+    </section>
+
     <div class="app-shell">
       <aside class="side-panel" aria-label="오늘의 나비 상태">
         <div class="brand">

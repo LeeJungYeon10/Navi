@@ -1,4 +1,4 @@
-const CACHE_NAME = "hello-nabiya-pwa-v18";
+const CACHE_NAME = "hello-nabiya-pwa-v19";
 const NABI_FRAMES = Array.from(
   { length: 22 },
   (_, index) => `./assets/nabi-frames/nabi-${String(index + 1).padStart(2, "0")}.png`,

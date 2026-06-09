@@ -84,10 +84,11 @@ const NABI_LEVELS = [
 const initialState = {
   profile: { name: "", goal: "정서적 안정", tone: "다정하고 차분하게", focus: [] },
   day: { sleepHours: null, activityMinutes: null, mood: null, energy: "보통", bond: 42, routines: [] },
-  nabi: { dailyBondDate: null, dailyBondGain: 0, lastVisitDate: null, streak: 0, lastStreakBonusDate: null, lastLevelMessage: 1, birthday: null },
+  nabi: { dailyBondDate: null, dailyBondGain: 0, lastVisitDate: null, streak: 0, lastStreakBonusDate: null, lastLevelMessage: 1, birthday: null, name: null },
   messages: [{ role: "cat", text: "안녕, 나는 나비야. 오늘 잠은 어땠고 몸은 어느 정도 움직였는지 편하게 말해줘." }],
   footprintDraft: null,
   footprints: [],
+  flags: { setupDone: false },
 };
 
 const state = loadState();
@@ -122,6 +123,11 @@ const els = {
   bondLabel: document.querySelector("#bondLabel"),
   nabiLevelLabel: document.querySelector("#nabiLevelLabel"),
   nabiAgeLabel: document.querySelector("#nabiAgeLabel"),
+  setupScreen: document.querySelector("#setupScreen"),
+  setupText: document.querySelector("#setupText"),
+  setupForm: document.querySelector("#setupForm"),
+  setupInput: document.querySelector("#setupInput"),
+  setupSkip: document.querySelector("#setupSkip"),
   resetDay: document.querySelector("#resetDay"),
   profileForm: document.querySelector("#profileForm"),
   completeRoutine: document.querySelector("#completeRoutine"),
@@ -228,6 +234,73 @@ function initWelcome() {
   if (cursor) input.addEventListener("focus", () => (cursor.style.display = "none"));
 }
 
+function catName() {
+  return (state.nabi.name || "").trim() || "나비";
+}
+
+let setupActive = false;
+
+// 로그인 직후 1회: 내 이름 → 고양이 이름 순서로 설정. 스킵하면 바로 메인으로.
+function maybeStartSetup() {
+  if (setupActive) return;
+  if (state.flags && state.flags.setupDone) return;
+  // 이미 이름이 있는 재방문 사용자는 설정을 건너뛴다.
+  if (state.profile.name) {
+    state.flags = { ...(state.flags || {}), setupDone: true };
+    persist();
+    return;
+  }
+  startSetup();
+}
+
+function startSetup() {
+  const screen = els.setupScreen;
+  if (!screen || !els.setupForm || !els.setupInput) return;
+  setupActive = true;
+  let step = 1; // 1: 내 이름, 2: 고양이 이름
+
+  function finish() {
+    setupActive = false;
+    state.flags = { ...(state.flags || {}), setupDone: true };
+    persist();
+    screen.classList.add("is-hidden");
+    switchView("chat");
+    render();
+  }
+
+  function showStep() {
+    if (step === 1) {
+      els.setupText.textContent = "반가워! 내가 널 뭐라고 부르면 될까?";
+      els.setupInput.value = state.profile.name || "";
+      els.setupInput.placeholder = "내 이름을 알려줘";
+    } else {
+      const who = state.profile.name ? `${state.profile.name}야, ` : "";
+      els.setupText.textContent = `${who}이번엔 내 이름도 정해줄래?`;
+      els.setupInput.value = state.nabi.name || "";
+      els.setupInput.placeholder = "고양이 이름을 정해줘 (예: 나비)";
+    }
+    window.setTimeout(() => els.setupInput.focus(), 50);
+  }
+
+  els.setupForm.onsubmit = (event) => {
+    event.preventDefault();
+    const value = els.setupInput.value.trim();
+    if (step === 1) {
+      if (value) state.profile.name = value;
+      step = 2;
+      showStep();
+    } else {
+      if (value) state.nabi.name = value;
+      finish();
+    }
+  };
+
+  els.setupSkip.onclick = finish;
+
+  screen.classList.remove("is-hidden");
+  showStep();
+}
+
 function bindEvents() {
   els.tabs.forEach((tab) => tab.addEventListener("click", () => switchView(tab.dataset.view)));
   els.googleLogin.addEventListener("click", signInWithGoogle);
@@ -300,6 +373,7 @@ async function initializeAuth() {
   if (authSession) {
     dismissWelcome();
     await hydrateFromCloud();
+    maybeStartSetup();
   }
 
   supabase.auth.onAuthStateChange(async (_event, session) => {
@@ -308,6 +382,7 @@ async function initializeAuth() {
     if (authSession) {
       dismissWelcome();
       await hydrateFromCloud();
+      maybeStartSetup();
     }
   });
 }
@@ -626,7 +701,7 @@ function renderChat() {
   els.chatLog.innerHTML = state.messages
     .map((message) =>
       `<li class="message ${message.role}${message.loading ? " is-loading" : ""}">` +
-      `<strong>${message.role === "cat" ? "나비" : "나"}</strong>` +
+      `<strong>${message.role === "cat" ? catName() : "나"}</strong>` +
       `${escapeHtml(message.text)}</li>`
     )
     .join("");
