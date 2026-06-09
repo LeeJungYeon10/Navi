@@ -701,6 +701,42 @@ dd {
   font-size: 0.8rem;
 }
 
+.chat-setup {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+  padding: 18px;
+  border: 1px solid rgba(138, 80, 0, 0.16);
+  border-radius: 14px;
+  background: rgba(255, 241, 231, 0.78);
+  box-shadow: 0 10px 30px rgba(138, 80, 0, 0.08);
+}
+
+.chat-setup h3 {
+  margin: 4px 0 8px;
+  font-size: 1.04rem;
+}
+
+.chat-setup-form {
+  display: grid;
+  gap: 10px;
+}
+
+.chat-setup-form input {
+  padding: 13px 14px;
+}
+
+.chat-setup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chat-setup-actions button {
+  min-height: 42px;
+  padding: 9px 14px;
+}
+
 .chat-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 94px;
@@ -821,6 +857,7 @@ textarea {
 }
 
 .chat-form button,
+.chat-setup-form button[type="submit"],
 .profile-form button {
   border: 0;
   border-radius: 8px;

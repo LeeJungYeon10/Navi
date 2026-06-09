@@ -60,29 +60,6 @@
       <button class="welcome-skip" id="welcomeSkip" type="button">로그인 없이 둘러보기</button>
     </section>
 
-    <section class="welcome-screen setup-screen is-hidden" id="setupScreen" aria-label="나비와 첫 설정">
-      <div class="welcome-glow welcome-glow--one" aria-hidden="true"></div>
-      <div class="welcome-glow welcome-glow--two" aria-hidden="true"></div>
-
-      <div class="welcome-cat">
-        <img class="cat-breathing" src="./assets/nabi.png" alt="나비" />
-      </div>
-
-      <div class="welcome-greeting">
-        <h1 id="setupText"></h1>
-      </div>
-
-      <form class="welcome-input" id="setupForm">
-        <label class="sr-only" for="setupInput">설정 입력</label>
-        <input id="setupInput" type="text" autocomplete="off" placeholder="여기에 적어주세요." />
-        <button type="submit" aria-label="다음">
-          <span class="material-symbols-outlined">arrow_forward</span>
-        </button>
-      </form>
-
-      <button class="welcome-skip" id="setupSkip" type="button">건너뛰기</button>
-    </section>
-
     <div class="app-shell">
       <aside class="side-panel" aria-label="오늘의 나비 상태">
         <div class="brand">
@@ -178,6 +155,22 @@
           </div>
 
           <ol class="chat-log" id="chatLog" aria-live="polite"></ol>
+
+          <section class="chat-setup is-hidden" id="chatSetup" aria-label="로그인 후 이름 설정">
+            <div>
+              <p class="eyebrow" id="chatSetupStep">첫 인사</p>
+              <h3 id="chatSetupTitle">내가 너를 뭐라고 부르면 될까?</h3>
+              <p class="privacy-note" id="chatSetupDescription">이름은 나비가 대화할 때만 다정하게 불러줄게요.</p>
+            </div>
+            <form class="chat-setup-form" id="chatSetupForm">
+              <label class="sr-only" for="chatSetupInput">이름 입력</label>
+              <input id="chatSetupInput" type="text" autocomplete="off" placeholder="편한 이름을 적어볼래?" />
+              <div class="chat-setup-actions">
+                <button type="submit" id="chatSetupSubmit">다음</button>
+                <button class="secondary-button" id="chatSetupSkip" type="button">건너뛰기</button>
+              </div>
+            </form>
+          </section>
 
           <form class="chat-form" id="chatForm">
             <label class="sr-only" for="messageInput">나비에게 보낼 메시지</label>

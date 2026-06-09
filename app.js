@@ -88,7 +88,7 @@ const initialState = {
   messages: [{ role: "cat", text: "안녕, 나는 나비야. 오늘 잠은 어땠고 몸은 어느 정도 움직였는지 편하게 말해줘." }],
   footprintDraft: null,
   footprints: [],
-  flags: { setupDone: false },
+  flags: { setupDone: false, loginSetupDone: false, loginSetupUserId: null },
 };
 
 const state = loadState();
@@ -123,11 +123,14 @@ const els = {
   bondLabel: document.querySelector("#bondLabel"),
   nabiLevelLabel: document.querySelector("#nabiLevelLabel"),
   nabiAgeLabel: document.querySelector("#nabiAgeLabel"),
-  setupScreen: document.querySelector("#setupScreen"),
-  setupText: document.querySelector("#setupText"),
-  setupForm: document.querySelector("#setupForm"),
-  setupInput: document.querySelector("#setupInput"),
-  setupSkip: document.querySelector("#setupSkip"),
+  chatSetup: document.querySelector("#chatSetup"),
+  chatSetupStep: document.querySelector("#chatSetupStep"),
+  chatSetupTitle: document.querySelector("#chatSetupTitle"),
+  chatSetupDescription: document.querySelector("#chatSetupDescription"),
+  chatSetupForm: document.querySelector("#chatSetupForm"),
+  chatSetupInput: document.querySelector("#chatSetupInput"),
+  chatSetupSubmit: document.querySelector("#chatSetupSubmit"),
+  chatSetupSkip: document.querySelector("#chatSetupSkip"),
   resetDay: document.querySelector("#resetDay"),
   profileForm: document.querySelector("#profileForm"),
   completeRoutine: document.querySelector("#completeRoutine"),
@@ -181,6 +184,7 @@ function initWelcome() {
 
   // 구글 로그인 복귀 또는 기존 세션이 있으면 웰컴을 건너뛰고 바로 대시보드로
   if (hasReturningAuth()) {
+    setWelcomeGuestAvailable(false);
     screen.remove();
     return;
   }
@@ -209,6 +213,7 @@ function initWelcome() {
 
   function dismiss() {
     typing = false;
+    setWelcomeGuestAvailable(false);
     screen.classList.add("is-dismissed");
     window.setTimeout(() => screen.remove(), 700);
   }
@@ -234,77 +239,127 @@ function initWelcome() {
   if (cursor) input.addEventListener("focus", () => (cursor.style.display = "none"));
 }
 
+function setWelcomeGuestAvailable(isAvailable) {
+  const skip = document.querySelector("#welcomeSkip");
+  if (!skip) return;
+  skip.disabled = !isAvailable;
+  skip.classList.toggle("is-hidden", !isAvailable);
+}
+
 function catName() {
   return (state.nabi.name || "").trim() || "나비";
 }
 
 let setupActive = false;
+let setupStep = "userName";
 
-// 로그인 직후 1회: 내 이름 → 고양이 이름 순서로 설정. 스킵하면 바로 메인으로.
+// 로그인 사용자에게만 채팅창 안에서 내 이름 → 고양이 이름 순서로 묻는다.
 function maybeStartSetup() {
-  if (setupActive) return;
-  if (state.flags && state.flags.setupDone) return;
-  // 이미 이름이 있는 재방문 사용자는 설정을 건너뛴다.
-  if (state.profile.name) {
-    state.flags = { ...(state.flags || {}), setupDone: true };
-    persist();
-    return;
-  }
+  if (setupActive || !authSession?.user?.id) return;
+  if (hasCompletedLoginSetup()) return;
   startSetup();
 }
 
+function hasCompletedLoginSetup() {
+  const userId = authSession?.user?.id;
+  if (!userId) return false;
+  return Boolean(state.flags?.loginSetupDone && state.flags?.loginSetupUserId === userId);
+}
+
 function startSetup() {
-  const screen = els.setupScreen;
-  if (!screen || !els.setupForm || !els.setupInput) return;
+  if (!els.chatSetup || !els.chatSetupInput) return;
   setupActive = true;
-  let step = 1; // 1: 내 이름, 2: 고양이 이름
+  setupStep = "userName";
+  switchView("chat");
+  addCatMessage("반가워. 내가 너를 뭐라고 부르면 될까? 이름을 입력해줄래?");
+  showSetupStep();
+  persist();
+  render();
+}
 
-  function finish() {
-    setupActive = false;
-    state.flags = { ...(state.flags || {}), setupDone: true };
+function showSetupStep() {
+  if (!els.chatSetup || !els.chatSetupInput) return;
+  els.chatSetup.classList.remove("is-hidden");
+  if (setupStep === "userName") {
+    els.chatSetupStep.textContent = "내 이름 설정";
+    els.chatSetupTitle.textContent = "내가 너를 뭐라고 부르면 될까?";
+    els.chatSetupDescription.textContent = "편한 이름을 적어줘도 되고, 지금은 건너뛰어도 괜찮아.";
+    els.chatSetupInput.value = state.profile.name || "";
+    els.chatSetupInput.placeholder = "편한 이름을 적어볼래?";
+    els.chatSetupSubmit.textContent = "다음";
+  } else {
+    const who = state.profile.name ? `${state.profile.name}야, ` : "";
+    els.chatSetupStep.textContent = "고양이 이름 설정";
+    els.chatSetupTitle.textContent = `${who}내 이름도 지어줄래?`;
+    els.chatSetupDescription.textContent = "고양이 이름을 정하면 대화창에서 그 이름으로 불러줄게.";
+    els.chatSetupInput.value = state.nabi.name || "";
+    els.chatSetupInput.placeholder = "예: 나비";
+    els.chatSetupSubmit.textContent = "시작하기";
+  }
+  window.setTimeout(() => els.chatSetupInput.focus(), 50);
+}
+
+function handleSetupSubmit(event) {
+  event.preventDefault();
+  if (!setupActive) return;
+  const value = els.chatSetupInput.value.trim();
+  if (setupStep === "userName") {
+    if (value) state.profile.name = value;
+    setupStep = "catName";
+    addCatMessage(value ? `${value}라고 부르면 되는구나. 이번엔 내 이름도 지어줄래?` : "괜찮아. 이름은 나중에 알려줘도 돼. 이번엔 내 이름도 지어줄래?");
     persist();
-    screen.classList.add("is-hidden");
-    switchView("chat");
     render();
+    showSetupStep();
+    return;
   }
 
-  function showStep() {
-    if (step === 1) {
-      els.setupText.textContent = "반가워! 내가 널 뭐라고 부르면 될까?";
-      els.setupInput.value = state.profile.name || "";
-      els.setupInput.placeholder = "내 이름을 알려줘";
-    } else {
-      const who = state.profile.name ? `${state.profile.name}야, ` : "";
-      els.setupText.textContent = `${who}이번엔 내 이름도 정해줄래?`;
-      els.setupInput.value = state.nabi.name || "";
-      els.setupInput.placeholder = "고양이 이름을 정해줘 (예: 나비)";
-    }
-    window.setTimeout(() => els.setupInput.focus(), 50);
-  }
+  if (value) state.nabi.name = value;
+  addCatMessage(value ? `${value}라고 불러주면 되는구나. 좋아, 이제 같이 이야기해보자.` : "좋아, 지금은 나비라고 불러도 괜찮아. 이제 같이 이야기해보자.");
+  finishSetup();
+}
 
-  els.setupForm.onsubmit = (event) => {
-    event.preventDefault();
-    const value = els.setupInput.value.trim();
-    if (step === 1) {
-      if (value) state.profile.name = value;
-      step = 2;
-      showStep();
-    } else {
-      if (value) state.nabi.name = value;
-      finish();
-    }
+function handleSetupSkip() {
+  if (!setupActive) return;
+  if (setupStep === "userName") {
+    setupStep = "catName";
+    addCatMessage("괜찮아. 이름은 나중에 알려줘도 돼. 그럼 내 이름도 지어줄래?");
+    persist();
+    render();
+    showSetupStep();
+    return;
+  }
+  addCatMessage("괜찮아. 지금은 나비라고 불러도 좋아. 이제 천천히 이야기해보자.");
+  finishSetup();
+}
+
+function finishSetup() {
+  setupActive = false;
+  setupStep = "userName";
+  state.flags = {
+    ...(state.flags || {}),
+    setupDone: true,
+    loginSetupDone: true,
+    loginSetupUserId: authSession?.user?.id || null,
   };
+  if (els.chatSetup) els.chatSetup.classList.add("is-hidden");
+  persist();
+  syncToCloud();
+  switchView("chat");
+  render();
+}
 
-  els.setupSkip.onclick = finish;
-
-  screen.classList.remove("is-hidden");
-  showStep();
+function stopSetup() {
+  setupActive = false;
+  setupStep = "userName";
+  if (els.chatSetup) els.chatSetup.classList.add("is-hidden");
 }
 
 function bindEvents() {
   els.tabs.forEach((tab) => tab.addEventListener("click", () => switchView(tab.dataset.view)));
   els.googleLogin.addEventListener("click", signInWithGoogle);
   els.logoutButton.addEventListener("click", signOut);
+  els.chatSetupForm.addEventListener("submit", handleSetupSubmit);
+  els.chatSetupSkip.addEventListener("click", handleSetupSkip);
   els.saveFootprint.addEventListener("click", saveFootprint);
   els.skipFootprint.addEventListener("click", skipFootprint);
 
@@ -383,12 +438,15 @@ async function initializeAuth() {
       dismissWelcome();
       await hydrateFromCloud();
       maybeStartSetup();
+    } else {
+      stopSetup();
     }
   });
 }
 
 async function signInWithGoogle() {
   if (!isSupabaseConfigured() || !supabase) return;
+  setWelcomeGuestAvailable(false);
   const { error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: { redirectTo: window.location.href.split("#")[0] },
@@ -403,6 +461,7 @@ async function signOut() {
   if (!supabase) return;
   await supabase.auth.signOut();
   authSession = null;
+  stopSetup();
   renderAuth(null);
 }
 
@@ -678,8 +737,14 @@ function render() {
   renderMetrics();
   renderInsights();
   renderProfile();
+  renderSetup();
   renderFootprintDraft();
   renderFootprints();
+}
+
+function renderSetup() {
+  if (!els.chatSetup) return;
+  els.chatSetup.classList.toggle("is-hidden", !setupActive);
 }
 
 function renderAuth(session, fallbackMessage) {
@@ -688,6 +753,7 @@ function renderAuth(session, fallbackMessage) {
   els.googleLogin.disabled = !configured;
   els.googleLogin.classList.toggle("is-hidden", Boolean(email));
   els.logoutButton.classList.toggle("is-hidden", !email);
+  setWelcomeGuestAvailable(!email);
   els.storageMode.textContent = email ? "클라우드 저장" : "로컬 저장";
   els.authTitle.textContent = email ? "로그인됨" : configured ? "Google 로그인" : "로컬 모드";
   els.authDescription.textContent = email
