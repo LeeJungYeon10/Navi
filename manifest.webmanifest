@@ -8,7 +8,7 @@
   "theme_color": "#f6c96f",
   "icons": [
     {
-      "src": "./assets/nabi.png",
+      "src": "./assets/navi.png",
       "sizes": "1024x1024",
       "type": "image/png",
       "purpose": "any maskable"

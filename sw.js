@@ -1,7 +1,7 @@
 const CACHE_NAME = "hello-nabiya-pwa-v20";
 const NABI_FRAMES = Array.from(
   { length: 22 },
-  (_, index) => `./assets/nabi-frames/nabi-${String(index + 1).padStart(2, "0")}.png`,
+  (_, index) => `./assets/navi-frames/navi-${String(index + 1).padStart(2, "0")}.png`,
 );
 const ASSETS = [
   "./",
@@ -11,8 +11,8 @@ const ASSETS = [
   "./supabase-client.js",
   "./supabase-config.js",
   "./manifest.webmanifest",
-  "./assets/nabi-face.png",
-  "./assets/nabi.png",
+  "./assets/navi-face.png",
+  "./assets/navi.png",
   ...NABI_FRAMES,
 ];
 

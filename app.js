@@ -158,7 +158,7 @@ let nabiFrameIndex = 0;
 const NABI_FRAME_MS = 80;
 const NABI_WALK_FRAMES = Array.from(
   { length: 22 },
-  (_, index) => `./assets/nabi-frames/nabi-${String(index + 1).padStart(2, "0")}.png`,
+  (_, index) => `./assets/navi-frames/navi-${String(index + 1).padStart(2, "0")}.png`,
 );
 
 bindEvents();
