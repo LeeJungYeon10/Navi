@@ -56,9 +56,11 @@ export const SUPABASE_ANON_KEY = "여기에 anon public key 붙여넣기";
 
 **Authentication > URL Configuration > Redirect URLs** 에 추가:
 
+```text
+http://localhost:5173/
 ```
-http://localhost:5173/Navi/
-```
+
+> 상위 폴더에서 서버를 띄웠다면 현재 로컬 폴더명 기준으로 `http://localhost:5173/hellopurrfly/`를 사용하세요.
 
 배포 후에는 실제 도메인도 추가.
 
@@ -129,7 +131,8 @@ curl -X POST \
 python -m http.server 5173
 ```
 
-브라우저에서 `http://localhost:5173/Navi/` 열기.
+브라우저에서 `http://localhost:5173/` 열기.  
+상위 폴더에서 실행 중이면 `http://localhost:5173/hellopurrfly/`를 열면 됩니다.
 
 ---
 
