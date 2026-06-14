@@ -1,5 +1,5 @@
-const CACHE_NAME = "hello-nabiya-pwa-v20";
-const NABI_FRAMES = Array.from(
+const CACHE_NAME = "hello-naviya-pwa-v21";
+const NAVI_FRAMES = Array.from(
   { length: 22 },
   (_, index) => `./assets/navi-frames/navi-${String(index + 1).padStart(2, "0")}.png`,
 );
@@ -13,7 +13,7 @@ const ASSETS = [
   "./manifest.webmanifest",
   "./assets/navi-face.png",
   "./assets/navi.png",
-  ...NABI_FRAMES,
+  ...NAVI_FRAMES,
 ];
 
 self.addEventListener("install", (event) => {

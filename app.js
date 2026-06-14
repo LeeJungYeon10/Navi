@@ -1,7 +1,8 @@
 import { getSupabase, isSupabaseConfigured } from "./supabase-client.js";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./supabase-config.js";
 
-const STORAGE_KEY = "hello-nabiya-state-v3";
+const STORAGE_KEY = "hello-naviya-state-v4";
+const LEGACY_STORAGE_KEYS = ["hello-nabiya-state-v3"];
 const supabase = await getSupabase();
 
 // ── 세션 시간 추적 (화면 오픈 시간 보너스용) ──────────────────────────
@@ -75,7 +76,7 @@ const labels = {
 };
 
 const DAILY_BOND_LIMIT = 12;
-const NABI_LEVELS = [
+const NAVI_LEVELS = [
   { level: 1, minBond: 0, name: "새끼 나비", copy: "처음 만난 나비가 조심스럽게 곁에 앉아 있어요." },
   { level: 2, minBond: 30, name: "어린 나비", copy: "나비가 조금 더 편하게 먼저 다가오고 있어요." },
   { level: 3, minBond: 65, name: "청년 나비", copy: "나비가 오늘의 패턴을 더 또렷하게 기억하려고 해요." },
@@ -84,7 +85,7 @@ const NABI_LEVELS = [
 const initialState = {
   profile: { name: "", goal: "정서적 안정", tone: "다정하고 차분하게", focus: [] },
   day: { sleepHours: null, activityMinutes: null, mood: null, energy: "보통", bond: 42, routines: [] },
-  nabi: { dailyBondDate: null, dailyBondGain: 0, lastVisitDate: null, streak: 0, lastStreakBonusDate: null, lastLevelMessage: 1, birthday: null, name: null },
+  navi: { dailyBondDate: null, dailyBondGain: 0, lastVisitDate: null, streak: 0, lastStreakBonusDate: null, lastLevelMessage: 1, birthday: null, name: null },
   messages: [{ role: "cat", text: "안녕, 나는 나비야. 오늘 잠은 어땠고 몸은 어느 정도 움직였는지 편하게 말해줘." }],
   footprintDraft: null,
   footprints: [],
@@ -121,8 +122,8 @@ const els = {
   insightList: document.querySelector("#insightList"),
   catMood: document.querySelector("#catMood"),
   bondLabel: document.querySelector("#bondLabel"),
-  nabiLevelLabel: document.querySelector("#nabiLevelLabel"),
-  nabiAgeLabel: document.querySelector("#nabiAgeLabel"),
+  naviLevelLabel: document.querySelector("#naviLevelLabel"),
+  naviAgeLabel: document.querySelector("#naviAgeLabel"),
   chatSetup: document.querySelector("#chatSetup"),
   chatSetupStep: document.querySelector("#chatSetupStep"),
   chatSetupTitle: document.querySelector("#chatSetupTitle"),
@@ -139,24 +140,24 @@ const els = {
   draftSleep: document.querySelector("#draftSleep"),
   draftActivity: document.querySelector("#draftActivity"),
   draftRoutine: document.querySelector("#draftRoutine"),
-  draftNabiNote: document.querySelector("#draftNabiNote"),
+  draftNaviNote: document.querySelector("#draftNaviNote"),
   draftUserNote: document.querySelector("#draftUserNote"),
   saveFootprint: document.querySelector("#saveFootprint"),
   skipFootprint: document.querySelector("#skipFootprint"),
   footprintList: document.querySelector("#footprintList"),
-  nabiWalker: document.querySelector("#nabiWalker"),
-  nabiWalkerImage: document.querySelector("#nabiWalkerImage"),
-  nabiBubble: document.querySelector("#nabiBubble"),
+  naviWalker: document.querySelector("#naviWalker"),
+  naviWalkerImage: document.querySelector("#naviWalkerImage"),
+  naviBubble: document.querySelector("#naviBubble"),
 };
 
-let nabiPosition = { x: 170, y: 230 };
-let nabiWalkTimer = null;
-let nabiBubbleTimer = null;
-let nabiStopTimer = null;
-let nabiFrameTimer = null;
-let nabiFrameIndex = 0;
-const NABI_FRAME_MS = 80;
-const NABI_WALK_FRAMES = Array.from(
+let naviPosition = { x: 170, y: 230 };
+let naviWalkTimer = null;
+let naviBubbleTimer = null;
+let naviStopTimer = null;
+let naviFrameTimer = null;
+let naviFrameIndex = 0;
+const NAVI_FRAME_MS = 80;
+const NAVI_WALK_FRAMES = Array.from(
   { length: 22 },
   (_, index) => `./assets/navi-frames/navi-${String(index + 1).padStart(2, "0")}.png`,
 );
@@ -164,7 +165,7 @@ const NABI_WALK_FRAMES = Array.from(
 bindEvents();
 render();
 registerServiceWorker();
-initNabiWalker();
+initNaviWalker();
 initWelcome();
 await initializeAuth();
 
@@ -247,7 +248,7 @@ function setWelcomeGuestAvailable(isAvailable) {
 }
 
 function catName() {
-  return (state.nabi.name || "").trim() || "나비";
+  return (state.navi.name || "").trim() || "나비";
 }
 
 let setupActive = false;
@@ -292,7 +293,7 @@ function showSetupStep() {
     els.chatSetupStep.textContent = "고양이 이름 설정";
     els.chatSetupTitle.textContent = `${who}내 이름도 지어줄래?`;
     els.chatSetupDescription.textContent = "고양이 이름을 정하면 대화창에서 그 이름으로 불러줄게.";
-    els.chatSetupInput.value = state.nabi.name || "";
+    els.chatSetupInput.value = state.navi.name || "";
     els.chatSetupInput.placeholder = "예: 나비";
     els.chatSetupSubmit.textContent = "시작하기";
   }
@@ -313,7 +314,7 @@ function handleSetupSubmit(event) {
     return;
   }
 
-  if (value) state.nabi.name = value;
+  if (value) state.navi.name = value;
   addCatMessage(value ? `${value}라고 불러주면 되는구나. 좋아, 이제 같이 이야기해보자.` : "좋아, 지금은 나비라고 불러도 괜찮아. 이제 같이 이야기해보자.");
   finishSetup();
 }
@@ -374,7 +375,7 @@ function bindEvents() {
   els.quickActions.addEventListener("click", (event) => {
     const button = event.target.closest("button[data-prompt]");
     if (button) {
-      moveNabiNear(button, "여기 앉아서 들어볼게.");
+      moveNaviNear(button, "여기 앉아서 들어볼게.");
       receiveUserMessage(button.dataset.prompt);
     }
   });
@@ -467,7 +468,7 @@ async function signOut() {
 
 async function receiveUserMessage(message) {
   _interactionScore += 1; // 메시지 전송 시 상호작용 점수 +1
-  moveNabiNear(els.messageInput, "나비가 가까이 왔어요.");
+  moveNaviNear(els.messageInput, "나비가 가까이 왔어요.");
   state.messages.push({ role: "user", text: message });
   const context = analyzeMessage(message);
   updateDayContext(context);
@@ -478,7 +479,7 @@ async function receiveUserMessage(message) {
   render();
 
   // LLM 호출 (실패 시 rule-based fallback)
-  const reply = await callNabi(state.messages, context);
+  const reply = await callNavi(state.messages, context);
 
   // 로딩 메시지 교체
   const idx = state.messages.indexOf(loadingMsg);
@@ -490,7 +491,7 @@ async function receiveUserMessage(message) {
   render();
 }
 
-async function callNabi(messages, context) {
+async function callNavi(messages, context) {
   if (!isSupabaseConfigured()) return makeCatReply(context);
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/navi-chat`, {
@@ -552,7 +553,7 @@ function buildFootprintDraft(context = {}) {
     mood,
     sleep,
     activity,
-    nabi_note: makeNabiNote(mood, sleep, activity),
+    navi_note: makeNaviNote(mood, sleep, activity),
     user_note: "",
     routine,
     routine_done: false,
@@ -588,7 +589,7 @@ function chooseRoutine(mood, sleep, activity) {
   return "journal";
 }
 
-function makeNabiNote(mood, sleep, activity) {
+function makeNaviNote(mood, sleep, activity) {
   if (mood === "anxious") return "오늘은 마음이 조금 웅크린 날이야. 나비가 옆에서 숨을 천천히 맞춰줄게.";
   if (sleep === "poor") return "오늘은 몸이 조금 느린 날이야. 무리하지 말고 회복을 먼저 챙기자.";
   if (activity === "good") return "오늘은 리듬이 꽤 살아있는 날이야. 이 작은 감각을 발자국으로 남겨두자.";
@@ -627,7 +628,7 @@ async function saveFootprint() {
 
   state.footprints = [footprint, ...state.footprints.filter((item) => item.footprint_date !== footprint.footprint_date)].slice(0, 14);
   state.footprintDraft = null;
-  moveNabiNear(els.saveFootprint, "발자국 남겼다.");
+  moveNaviNear(els.saveFootprint, "발자국 남겼다.");
   addCatMessage(authSession ? "오늘 발자국을 나비의 기억에 남겼어." : "오늘 발자국을 이 기기에 남겼어. 로그인하면 나비가 다른 기기에서도 기억할 수 있어.");
   persist();
   await syncToCloud();
@@ -635,7 +636,7 @@ async function saveFootprint() {
 }
 
 function skipFootprint() {
-  moveNabiToQuietSpot("괜찮아.");
+  moveNaviToQuietSpot("괜찮아.");
   state.footprintDraft = null;
   addCatMessage("좋아, 오늘은 그냥 지나가도 괜찮아. 나비는 여기 있을게.");
   persist();
@@ -649,31 +650,31 @@ function addCatMessage(text) {
 function addBond(points) {
   if (!points || points <= 0) return 0;
   const today = getToday();
-  if (state.nabi.dailyBondDate !== today) {
-    state.nabi.dailyBondDate = today;
-    state.nabi.dailyBondGain = 0;
+  if (state.navi.dailyBondDate !== today) {
+    state.navi.dailyBondDate = today;
+    state.navi.dailyBondGain = 0;
   }
 
-  const beforeLevel = getNabiGrowth().level;
-  const remaining = Math.max(0, DAILY_BOND_LIMIT - state.nabi.dailyBondGain);
+  const beforeLevel = getNaviGrowth().level;
+  const remaining = Math.max(0, DAILY_BOND_LIMIT - state.navi.dailyBondGain);
   const applied = Math.min(points, remaining, 100 - state.day.bond);
   if (applied <= 0) return 0;
 
   state.day.bond = Math.min(100, state.day.bond + applied);
-  state.nabi.dailyBondGain += applied;
+  state.navi.dailyBondGain += applied;
 
-  const growth = getNabiGrowth();
-  if (growth.level > beforeLevel && state.nabi.lastLevelMessage !== growth.level) {
-    state.nabi.lastLevelMessage = growth.level;
+  const growth = getNaviGrowth();
+  if (growth.level > beforeLevel && state.navi.lastLevelMessage !== growth.level) {
+    state.navi.lastLevelMessage = growth.level;
     addCatMessage(`${growth.name}가 되었어. 나비가 너랑 조금 더 가까워진 것 같아.`);
   }
 
   return applied;
 }
 
-function getNabiGrowth() {
+function getNaviGrowth() {
   const bond = Number(state.day.bond) || 0;
-  return [...NABI_LEVELS].reverse().find((level) => bond >= level.minBond) || NABI_LEVELS[0];
+  return [...NAVI_LEVELS].reverse().find((level) => bond >= level.minBond) || NAVI_LEVELS[0];
 }
 
 function getCharacterAge(birthday) {
@@ -699,23 +700,23 @@ function getDaysTogether(birthday) {
   return Math.max(1, diff + 1);
 }
 
-function getNabiAgeLabel() {
-  const age = getCharacterAge(state.nabi.birthday);
+function getNaviAgeLabel() {
+  const age = getCharacterAge(state.navi.birthday);
   if (age >= 1) return `나비 ${age}살`;
-  return `함께 ${getDaysTogether(state.nabi.birthday)}일`;
+  return `함께 ${getDaysTogether(state.navi.birthday)}일`;
 }
 
 function markDailyVisit() {
   const today = getToday();
-  if (!state.nabi.birthday) state.nabi.birthday = today;
-  if (state.nabi.lastVisitDate === today) return;
+  if (!state.navi.birthday) state.navi.birthday = today;
+  if (state.navi.lastVisitDate === today) return;
 
-  const previousVisit = state.nabi.lastVisitDate;
-  state.nabi.streak = isYesterday(previousVisit, today) ? state.nabi.streak + 1 : 1;
-  state.nabi.lastVisitDate = today;
+  const previousVisit = state.navi.lastVisitDate;
+  state.navi.streak = isYesterday(previousVisit, today) ? state.navi.streak + 1 : 1;
+  state.navi.lastVisitDate = today;
 
-  if (state.nabi.streak >= 7 && state.nabi.lastStreakBonusDate !== today) {
-    state.nabi.lastStreakBonusDate = today;
+  if (state.navi.streak >= 7 && state.navi.lastStreakBonusDate !== today) {
+    state.navi.lastStreakBonusDate = today;
     addBond(2);
     addCatMessage("7일째 들러줬네. 나비가 이 리듬을 조용히 기억해둘게.");
   }
@@ -775,14 +776,14 @@ function renderChat() {
 }
 
 function renderMetrics() {
-  const growth = getNabiGrowth();
+  const growth = getNaviGrowth();
   els.sleepMetric.textContent = state.day.sleepHours === null ? "미입력" : `${state.day.sleepHours}시간`;
   els.activityMetric.textContent = state.day.activityMinutes === null ? "미입력" : `${state.day.activityMinutes}분`;
   els.moodMetric.textContent = state.day.mood || "미입력";
   els.energyMetric.textContent = state.day.energy;
   els.bondLabel.textContent = `유대감 ${state.day.bond}%`;
-  if (els.nabiLevelLabel) els.nabiLevelLabel.textContent = `Lv.${growth.level} ${growth.name}`;
-  if (els.nabiAgeLabel) els.nabiAgeLabel.textContent = getNabiAgeLabel();
+  if (els.naviLevelLabel) els.naviLevelLabel.textContent = `Lv.${growth.level} ${growth.name}`;
+  if (els.naviAgeLabel) els.naviAgeLabel.textContent = getNaviAgeLabel();
   const moodCopy = {
     낮음: "오늘은 나비가 옆에서 속도를 낮춰줄게요.",
     주의: "긴장 신호가 보여요. 잠깐 숨을 고르자요.",
@@ -817,7 +818,7 @@ function renderFootprintDraft() {
   els.draftSleep.textContent = labels.sleep[draft.sleep];
   els.draftActivity.textContent = labels.activity[draft.activity];
   els.draftRoutine.textContent = labels.routine[draft.routine];
-  els.draftNabiNote.textContent = draft.nabi_note;
+  els.draftNaviNote.textContent = draft.navi_note || draft.nabi_note || "";
   els.draftUserNote.value = draft.user_note || "";
 }
 
@@ -835,105 +836,105 @@ function renderFootprints() {
                 <span>활동 ${labels.activity[item.activity]}</span>
                 <span>${labels.routine[item.routine]}</span>
               </div>
-              <p class="nabi-note">${escapeHtml(item.nabi_note)}</p>
+              <p class="navi-note">${escapeHtml(item.navi_note || item.nabi_note || "")}</p>
               ${item.user_note ? `<p>${escapeHtml(item.user_note)}</p>` : ""}
             </article>
           `,
         )
         .join("")
-    : `<article class="footprint-item"><h3>아직 남긴 발자국이 없어요</h3><p class="nabi-note">나비와 오늘을 이야기한 뒤 발자국을 남겨보세요.</p></article>`;
+    : `<article class="footprint-item"><h3>아직 남긴 발자국이 없어요</h3><p class="navi-note">나비와 오늘을 이야기한 뒤 발자국을 남겨보세요.</p></article>`;
 }
 
 function switchView(viewName) {
   els.tabs.forEach((tab) => tab.classList.toggle("is-active", tab.dataset.view === viewName));
   Object.entries(els.views).forEach(([name, view]) => view.classList.toggle("is-active", name === viewName));
   const activeTab = [...els.tabs].find((tab) => tab.dataset.view === viewName);
-  if (activeTab) moveNabiNear(activeTab, viewName === "footprints" ? "기억 보러 갈까?" : "여기 있을게.");
+  if (activeTab) moveNaviNear(activeTab, viewName === "footprints" ? "기억 보러 갈까?" : "여기 있을게.");
 }
 
-function initNabiWalker() {
-  if (!els.nabiWalker) return;
+function initNaviWalker() {
+  if (!els.naviWalker) return;
   requestAnimationFrame(() => {
-    moveNabiNear(document.querySelector(".cat-stage"), "나비가 산책 중이에요.", { instant: true });
-    scheduleNabiWalk();
+    moveNaviNear(document.querySelector(".cat-stage"), "나비가 산책 중이에요.", { instant: true });
+    scheduleNaviWalk();
   });
-  window.addEventListener("resize", () => moveNabiToQuietSpot());
+  window.addEventListener("resize", () => moveNaviToQuietSpot());
 }
 
-function scheduleNabiWalk() {
-  window.clearTimeout(nabiWalkTimer);
-  nabiWalkTimer = window.setTimeout(() => {
-    moveNabiToQuietSpot();
-    scheduleNabiWalk();
+function scheduleNaviWalk() {
+  window.clearTimeout(naviWalkTimer);
+  naviWalkTimer = window.setTimeout(() => {
+    moveNaviToQuietSpot();
+    scheduleNaviWalk();
   }, 7000 + Math.random() * 5000);
 }
 
-function moveNabiNear(target, bubbleText = "", options = {}) {
-  if (!els.nabiWalker || !target) return;
+function moveNaviNear(target, bubbleText = "", options = {}) {
+  if (!els.naviWalker || !target) return;
   const rect = target.getBoundingClientRect();
-  const walkerWidth = els.nabiWalker.getBoundingClientRect().width || 140;
+  const walkerWidth = els.naviWalker.getBoundingClientRect().width || 140;
   const x = clamp(rect.left + rect.width / 2 - walkerWidth / 2, 14, window.innerWidth - walkerWidth - 14);
   const y = clamp(rect.top - walkerWidth * 0.56, 86, window.innerHeight - walkerWidth - 18);
-  setNabiPosition(x, y, bubbleText, options);
+  setNaviPosition(x, y, bubbleText, options);
 }
 
-function moveNabiToQuietSpot(bubbleText = "") {
-  if (!els.nabiWalker) return;
-  const walkerWidth = els.nabiWalker.getBoundingClientRect().width || 140;
+function moveNaviToQuietSpot(bubbleText = "") {
+  if (!els.naviWalker) return;
+  const walkerWidth = els.naviWalker.getBoundingClientRect().width || 140;
   const x = clamp(28 + Math.random() * (window.innerWidth - walkerWidth - 56), 14, window.innerWidth - walkerWidth - 14);
   const y = clamp(130 + Math.random() * (window.innerHeight - walkerWidth - 180), 86, window.innerHeight - walkerWidth - 18);
-  setNabiPosition(x, y, bubbleText || randomNabiBubble());
+  setNaviPosition(x, y, bubbleText || randomNaviBubble());
 }
 
-function setNabiPosition(x, y, bubbleText = "", options = {}) {
-  nabiPosition = { x, y };
-  els.nabiWalker.style.setProperty("--nabi-x", `${x}px`);
-  els.nabiWalker.style.setProperty("--nabi-y", `${y}px`);
-  els.nabiWalker.classList.toggle("is-walking", !options.instant);
-  setNabiSprite(!options.instant);
-  window.clearTimeout(nabiStopTimer);
-  nabiStopTimer = window.setTimeout(() => {
-    els.nabiWalker.classList.remove("is-walking");
-    setNabiSprite(false);
+function setNaviPosition(x, y, bubbleText = "", options = {}) {
+  naviPosition = { x, y };
+  els.naviWalker.style.setProperty("--navi-x", `${x}px`);
+  els.naviWalker.style.setProperty("--navi-y", `${y}px`);
+  els.naviWalker.classList.toggle("is-walking", !options.instant);
+  setNaviSprite(!options.instant);
+  window.clearTimeout(naviStopTimer);
+  naviStopTimer = window.setTimeout(() => {
+    els.naviWalker.classList.remove("is-walking");
+    setNaviSprite(false);
   }, options.instant ? 0 : 1800);
-  showNabiBubble(bubbleText);
+  showNaviBubble(bubbleText);
 }
 
-function setNabiSprite(isWalking) {
-  if (!els.nabiWalkerImage) return;
+function setNaviSprite(isWalking) {
+  if (!els.naviWalkerImage) return;
   if (isWalking) {
-    startNabiFrameAnimation();
+    startNaviFrameAnimation();
     return;
   }
-  stopNabiFrameAnimation();
+  stopNaviFrameAnimation();
 }
 
-function startNabiFrameAnimation() {
-  if (!els.nabiWalkerImage || nabiFrameTimer) return;
-  nabiFrameIndex = 0;
-  els.nabiWalkerImage.src = NABI_WALK_FRAMES[nabiFrameIndex];
-  nabiFrameTimer = window.setInterval(() => {
-    nabiFrameIndex = (nabiFrameIndex + 1) % NABI_WALK_FRAMES.length;
-    els.nabiWalkerImage.src = NABI_WALK_FRAMES[nabiFrameIndex];
-  }, NABI_FRAME_MS);
+function startNaviFrameAnimation() {
+  if (!els.naviWalkerImage || naviFrameTimer) return;
+  naviFrameIndex = 0;
+  els.naviWalkerImage.src = NAVI_WALK_FRAMES[naviFrameIndex];
+  naviFrameTimer = window.setInterval(() => {
+    naviFrameIndex = (naviFrameIndex + 1) % NAVI_WALK_FRAMES.length;
+    els.naviWalkerImage.src = NAVI_WALK_FRAMES[naviFrameIndex];
+  }, NAVI_FRAME_MS);
 }
 
-function stopNabiFrameAnimation() {
-  window.clearInterval(nabiFrameTimer);
-  nabiFrameTimer = null;
-  nabiFrameIndex = 0;
-  els.nabiWalkerImage.src = els.nabiWalkerImage.dataset.still || NABI_WALK_FRAMES[0];
+function stopNaviFrameAnimation() {
+  window.clearInterval(naviFrameTimer);
+  naviFrameTimer = null;
+  naviFrameIndex = 0;
+  els.naviWalkerImage.src = els.naviWalkerImage.dataset.still || NAVI_WALK_FRAMES[0];
 }
 
-function showNabiBubble(text) {
+function showNaviBubble(text) {
   if (!text) return;
-  els.nabiBubble.textContent = text;
-  els.nabiWalker.classList.add("has-bubble");
-  window.clearTimeout(nabiBubbleTimer);
-  nabiBubbleTimer = window.setTimeout(() => els.nabiWalker.classList.remove("has-bubble"), 2300);
+  els.naviBubble.textContent = text;
+  els.naviWalker.classList.add("has-bubble");
+  window.clearTimeout(naviBubbleTimer);
+  naviBubbleTimer = window.setTimeout(() => els.naviWalker.classList.remove("has-bubble"), 2300);
 }
 
-function randomNabiBubble() {
+function randomNaviBubble() {
   const lines = ["여기서 잠깐 앉을게.", "나비가 둘러보는 중.", "오늘 리듬을 살피고 있어.", "천천히 해도 괜찮아."];
   return lines[Math.floor(Math.random() * lines.length)];
 }
@@ -963,7 +964,7 @@ async function hydrateFromCloud() {
   if (profile) {
     state.profile = { name: profile.display_name || "", goal: profile.goal || initialState.profile.goal, tone: profile.tone || initialState.profile.tone, focus: profile.focus || [] };
   }
-  if (footprints?.length) state.footprints = footprints;
+  if (footprints?.length) state.footprints = footprints.map(normalizeFootprintRecord);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   render();
 }
@@ -982,7 +983,7 @@ async function syncToCloud() {
     mood: item.mood,
     sleep: item.sleep,
     activity: item.activity,
-    nabi_note: item.nabi_note,
+    nabi_note: item.navi_note || item.nabi_note || "",
     user_note: item.user_note || null,
     routine: item.routine,
     routine_done: item.routine_done,
@@ -994,11 +995,41 @@ async function syncToCloud() {
 
 function loadState() {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? deepMerge(initialState, JSON.parse(stored)) : structuredClone(initialState);
+    const stored = localStorage.getItem(STORAGE_KEY) || LEGACY_STORAGE_KEYS.map((key) => localStorage.getItem(key)).find(Boolean);
+    if (!stored) return structuredClone(initialState);
+    const parsed = JSON.parse(stored);
+    return deepMerge(initialState, normalizePersistedState(parsed));
   } catch {
     return structuredClone(initialState);
   }
+}
+
+function normalizePersistedState(value) {
+  if (!value || typeof value !== "object") return {};
+  const normalized = { ...value };
+
+  if (!normalized.navi && normalized.nabi) {
+    normalized.navi = normalized.nabi;
+  }
+
+  if (normalized.footprintDraft && typeof normalized.footprintDraft === "object") {
+    normalized.footprintDraft = normalizeFootprintRecord(normalized.footprintDraft);
+  }
+
+  if (Array.isArray(normalized.footprints)) {
+    normalized.footprints = normalized.footprints.map(normalizeFootprintRecord);
+  }
+
+  return normalized;
+}
+
+function normalizeFootprintRecord(item) {
+  if (!item || typeof item !== "object") return item;
+  if (item.navi_note !== undefined) return item;
+  return {
+    ...item,
+    navi_note: item.nabi_note || "",
+  };
 }
 
 function getToday() {

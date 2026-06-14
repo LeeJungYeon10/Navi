@@ -475,26 +475,26 @@ h2 {
   text-align: center;
 }
 
-.nabi-walker {
+.navi-walker {
   position: fixed;
   left: 0;
   top: 0;
   z-index: 20;
   width: clamp(112px, 12vw, 172px);
   pointer-events: none;
-  transform: translate3d(var(--nabi-x, 170px), var(--nabi-y, 230px), 0);
+  transform: translate3d(var(--navi-x, 170px), var(--navi-y, 230px), 0);
   transition:
     transform 1.4s cubic-bezier(0.2, 0.8, 0.2, 1),
     opacity 0.2s ease;
 }
 
-.nabi-walker img {
+.navi-walker img {
   display: block;
   width: 100%;
   height: auto;
 }
 
-.nabi-bubble {
+.navi-bubble {
   position: absolute;
   left: 50%;
   bottom: calc(100% - 8px);
@@ -514,7 +514,7 @@ h2 {
   transition: opacity 0.18s ease;
 }
 
-.nabi-walker.has-bubble .nabi-bubble {
+.navi-walker.has-bubble .navi-bubble {
   opacity: 1;
 }
 
@@ -771,7 +771,7 @@ dd {
   background: rgba(255, 255, 255, 0.7);
 }
 
-.nabi-note {
+.navi-note {
   margin: 0;
   color: #354639;
   line-height: 1.55;

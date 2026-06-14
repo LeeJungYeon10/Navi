@@ -25,9 +25,9 @@
 
 ```bash
 # 1) 프로젝트 생성 (이 스캐폴드를 빈 폴더에 풀거나, 아래로 새로 생성 후 파일 복사)
-npx create-next-app@latest nabi --typescript --tailwind --app --eslint
+npx create-next-app@latest navi --typescript --tailwind --app --eslint
 
-cd nabi
+cd navi
 
 # 2) Supabase 클라이언트 (App Router용 최신 패키지)
 npm install @supabase/supabase-js @supabase/ssr
