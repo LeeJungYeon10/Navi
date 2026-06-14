@@ -1,4 +1,4 @@
-const CACHE_NAME = "hello-naviya-pwa-v21";
+const CACHE_NAME = "hello-naviya-pwa-v22";
 const NAVI_FRAMES = Array.from(
   { length: 22 },
   (_, index) => `./assets/navi-frames/navi-${String(index + 1).padStart(2, "0")}.png`,
@@ -13,6 +13,8 @@ const ASSETS = [
   "./manifest.webmanifest",
   "./assets/navi-face.png",
   "./assets/navi.png",
+  "./assets/navi-lying-face-front.png",
+  "./assets/navi-lying-face-aspect.png",
   ...NAVI_FRAMES,
 ];
 

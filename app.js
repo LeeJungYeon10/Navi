@@ -161,6 +161,12 @@ const NAVI_WALK_FRAMES = Array.from(
   { length: 22 },
   (_, index) => `./assets/navi-frames/navi-${String(index + 1).padStart(2, "0")}.png`,
 );
+// 산책을 멈추고 쉴 때 보여줄 누운 포즈. 곁에 오면 눈맞춤(front), 멀리서 쉴 땐 옆모습(aspect).
+const NAVI_REST_POSES = {
+  front: "./assets/navi-lying-face-front.png",
+  aspect: "./assets/navi-lying-face-aspect.png",
+};
+let naviRestPose = "front";
 
 bindEvents();
 render();
@@ -871,6 +877,7 @@ function scheduleNaviWalk() {
 
 function moveNaviNear(target, bubbleText = "", options = {}) {
   if (!els.naviWalker || !target) return;
+  naviRestPose = "front";
   const rect = target.getBoundingClientRect();
   const walkerWidth = els.naviWalker.getBoundingClientRect().width || 140;
   const x = clamp(rect.left + rect.width / 2 - walkerWidth / 2, 14, window.innerWidth - walkerWidth - 14);
@@ -880,6 +887,7 @@ function moveNaviNear(target, bubbleText = "", options = {}) {
 
 function moveNaviToQuietSpot(bubbleText = "") {
   if (!els.naviWalker) return;
+  naviRestPose = "aspect";
   const walkerWidth = els.naviWalker.getBoundingClientRect().width || 140;
   const x = clamp(28 + Math.random() * (window.innerWidth - walkerWidth - 56), 14, window.innerWidth - walkerWidth - 14);
   const y = clamp(130 + Math.random() * (window.innerHeight - walkerWidth - 180), 86, window.innerHeight - walkerWidth - 18);
@@ -923,7 +931,7 @@ function stopNaviFrameAnimation() {
   window.clearInterval(naviFrameTimer);
   naviFrameTimer = null;
   naviFrameIndex = 0;
-  els.naviWalkerImage.src = els.naviWalkerImage.dataset.still || NAVI_WALK_FRAMES[0];
+  els.naviWalkerImage.src = NAVI_REST_POSES[naviRestPose] || els.naviWalkerImage.dataset.still || NAVI_WALK_FRAMES[0];
 }
 
 function showNaviBubble(text) {
