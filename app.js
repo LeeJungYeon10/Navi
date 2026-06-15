@@ -219,7 +219,7 @@ let setupStep = "userName";
 let currentView = "chat";
 const OAUTH_PENDING_KEY = "navi-oauth-pending";
 let authBootstrapComplete = false;
-let finishingAuthSession = false;
+let finishingAuthSession = null;
 let naviNameEditing = false;
 
 bindEvents();
@@ -447,31 +447,42 @@ function cleanAuthParamsFromUrl() {
 
 async function finishAuthSession(session, { hydrate = true } = {}) {
   if (!session?.user) return false;
-  if (finishingAuthSession) return Boolean(authSession);
+  if (finishingAuthSession) return finishingAuthSession;
   if (authSession?.user?.id === session.user.id && authBootstrapped) {
     authSession = session;
     renderAuth(session);
+    enterApp();
     return true;
   }
 
-  finishingAuthSession = true;
-  try {
+  finishingAuthSession = (async () => {
     authSession = session;
     state.flags = { ...(state.flags || {}), appEntered: true };
     clearOAuthPending();
     renderAuth(authSession);
     cleanAuthParamsFromUrl();
+
+    enterApp();
+
     if (hydrate && !authHydrated) {
       authHydrated = true;
-      await hydrateFromCloud();
+      try {
+        await hydrateFromCloud();
+      } catch (error) {
+        console.error("Cloud hydrate failed:", error);
+      }
     }
-    enterApp();
+
     if (!hasCompletedLoginSetup()) startSetup();
     persist();
     render();
     return true;
+  })();
+
+  try {
+    return await finishingAuthSession;
   } finally {
-    finishingAuthSession = false;
+    finishingAuthSession = null;
   }
 }
 
@@ -507,8 +518,6 @@ async function resolveAuthSession(client) {
 }
 
 function handleAuthStateChange(event, session) {
-  if (!authBootstrapComplete && (event === "INITIAL_SESSION" || event === "SIGNED_IN")) return;
-
   if (event === "TOKEN_REFRESHED" && session) {
     authSession = session;
     renderAuth(session);
@@ -789,6 +798,8 @@ async function bootstrapApp() {
 
   if (session) {
     if (!authSession) await finishAuthSession(session, { hydrate: !authHydrated });
+    authBootstrapped = true;
+  } else if (authSession) {
     authBootstrapped = true;
   } else if (isOAuthAttemptInProgress()) {
     enterApp();
@@ -1171,6 +1182,12 @@ function renderAuth(session) {
   if (els.googleLogin) {
     els.googleLogin.disabled = !configured || loggedIn;
     els.googleLogin.classList.toggle("is-hidden", loggedIn);
+  }
+
+  const welcomeGoogle = document.querySelector("#welcomeGoogle");
+  if (welcomeGoogle) {
+    welcomeGoogle.disabled = !configured || loggedIn;
+    welcomeGoogle.classList.toggle("is-hidden", loggedIn);
   }
 
   setWelcomeGuestAvailable(!loggedIn);
