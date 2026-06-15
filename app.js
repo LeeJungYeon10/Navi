@@ -664,6 +664,24 @@ function catName() {
   return (state.navi.name || "").trim() || "나비";
 }
 
+const CAT_LEVEL_PREFIXES = ["새끼 ", "어린 ", "청년 "];
+
+function localizeCatSpeech(text) {
+  const name = catName();
+  if (!text || name === "나비") return text;
+  return text
+    .replace(/나비(가|는|와|의|야)/g, (match, particle, offset) => {
+      const before = text.slice(Math.max(0, offset - 5), offset);
+      if (CAT_LEVEL_PREFIXES.some((prefix) => before.endsWith(prefix))) return match;
+      return `${name}${particle}`;
+    })
+    .replace(/나는 나비야/g, `나는 ${name}야`);
+}
+
+function getDefaultCatGreeting() {
+  return `안녕, 나는 ${catName()}야. 오늘 잠은 어땠고 몸은 어느 정도 움직였는지 편하게 말해줘.`;
+}
+
 function formatNaviBirthday(birthday) {
   if (!birthday) return "아직 기록 없음";
   const [year, month, day] = birthday.split("-").map(Number);
@@ -1046,7 +1064,7 @@ function resetLocalAccountState() {
 
 async function receiveUserMessage(message) {
   _interactionScore += 1; // 메시지 전송 시 상호작용 점수 +1
-  moveNaviNear(els.messageInput, "나비가 가까이 왔어요.");
+  moveNaviNear(els.messageInput, `${catName()}가 가까이 왔어요.`);
   state.messages.push({ role: "user", text: message });
   const context = analyzeMessage(message);
   updateDayContext(context);
@@ -1061,8 +1079,9 @@ async function receiveUserMessage(message) {
 
   // 로딩 메시지 교체
   const idx = state.messages.indexOf(loadingMsg);
-  if (idx !== -1) state.messages[idx] = { role: "cat", text: reply };
-  else state.messages.push({ role: "cat", text: reply });
+  const localizedReply = localizeCatSpeech(reply);
+  if (idx !== -1) state.messages[idx] = { role: "cat", text: localizedReply };
+  else state.messages.push({ role: "cat", text: localizedReply });
 
   state.footprintDraft = buildFootprintDraft(context);
   syncActiveChatToHistory();
@@ -1080,12 +1099,12 @@ async function callNavi(messages, context) {
         "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
         "apikey": SUPABASE_ANON_KEY,
       },
-      body: JSON.stringify({ messages, context }),
+      body: JSON.stringify({ messages, context: { ...context, catName: catName() } }),
       signal: AbortSignal.timeout(12000), // 12초 타임아웃
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    return data.text || makeCatReply(context);
+    return localizeCatSpeech(data.text || makeCatReply(context));
   } catch {
     return makeCatReply(context); // 네트워크 오류 시 rule-based로 대체
   }
@@ -1169,10 +1188,10 @@ function chooseRoutine(mood, sleep, activity) {
 }
 
 function makeNaviNote(mood, sleep, activity) {
-  if (mood === "anxious") return "오늘은 마음이 조금 웅크린 날이야. 나비가 옆에서 숨을 천천히 맞춰줄게.";
+  if (mood === "anxious") return `오늘은 마음이 조금 웅크린 날이야. ${catName()}가 옆에서 숨을 천천히 맞춰줄게.`;
   if (sleep === "poor") return "오늘은 몸이 조금 느린 날이야. 무리하지 말고 회복을 먼저 챙기자.";
   if (activity === "good") return "오늘은 리듬이 꽤 살아있는 날이야. 이 작은 감각을 발자국으로 남겨두자.";
-  return "오늘의 조각을 작게 남겨볼게. 나비가 조용히 기억해둘게.";
+  return `오늘의 조각을 작게 남겨볼게. ${catName()}가 조용히 기억해둘게.`;
 }
 
 function makeCatReply(context) {
@@ -1190,7 +1209,7 @@ function makeCatReply(context) {
 
 function makeRoutineReply(checked) {
   if (!checked.length) return "괜찮아. 루틴은 부담이 되면 작게 시작하면 돼.";
-  return `좋아, 오늘은 ${checked.join(", ")}까지 챙겼어. 나비가 보기엔 충분히 좋은 시작이야.`;
+  return `좋아, 오늘은 ${checked.join(", ")}까지 챙겼어. ${catName()}가 보기엔 충분히 좋은 시작이야.`;
 }
 
 async function saveFootprint() {
@@ -1208,7 +1227,7 @@ async function saveFootprint() {
   state.footprints = [footprint, ...state.footprints.filter((item) => item.footprint_date !== footprint.footprint_date)].slice(0, 14);
   state.footprintDraft = null;
   moveNaviNear(els.saveFootprint, "발자국 남겼다.");
-  addCatMessage(authSession ? "오늘 발자국을 나비의 기억에 남겼어." : "오늘 발자국을 이 기기에 남겼어. 로그인하면 나비가 다른 기기에서도 기억할 수 있어.");
+  addCatMessage(authSession ? `오늘 발자국을 ${catName()}의 기억에 남겼어.` : `오늘 발자국을 이 기기에 남겼어. 로그인하면 ${catName()}가 다른 기기에서도 기억할 수 있어.`);
   persist();
   await syncToCloud();
   render();
@@ -1217,13 +1236,13 @@ async function saveFootprint() {
 function skipFootprint() {
   moveNaviToQuietSpot("괜찮아.");
   state.footprintDraft = null;
-  addCatMessage("좋아, 오늘은 그냥 지나가도 괜찮아. 나비는 여기 있을게.");
+  addCatMessage(`좋아, 오늘은 그냥 지나가도 괜찮아. ${catName()}는 여기 있을게.`);
   persist();
   render();
 }
 
 function addCatMessage(text) {
-  state.messages.push({ role: "cat", text });
+  state.messages.push({ role: "cat", text: localizeCatSpeech(text) });
 }
 
 function addBond(points) {
@@ -1245,7 +1264,7 @@ function addBond(points) {
   const growth = getNaviGrowth();
   if (growth.level > beforeLevel && state.navi.lastLevelMessage !== growth.level) {
     state.navi.lastLevelMessage = growth.level;
-    addCatMessage(`${growth.name}가 되었어. 나비가 너랑 조금 더 가까워진 것 같아.`);
+    addCatMessage(`${growth.name}가 되었어. ${catName()}가 너랑 조금 더 가까워진 것 같아.`);
   }
 
   return applied;
@@ -1281,7 +1300,7 @@ function getDaysTogether(birthday) {
 
 function getNaviAgeLabel() {
   const age = getCharacterAge(state.navi.birthday);
-  if (age >= 1) return `나비 ${age}살`;
+  if (age >= 1) return `${catName()} ${age}살`;
   return `함께 ${getDaysTogether(state.navi.birthday)}일`;
 }
 
@@ -1297,7 +1316,7 @@ function markDailyVisit() {
   if (state.navi.streak >= 7 && state.navi.lastStreakBonusDate !== today) {
     state.navi.lastStreakBonusDate = today;
     addBond(2);
-    addCatMessage("7일째 들러줬네. 나비가 이 리듬을 조용히 기억해둘게.");
+    addCatMessage(`7일째 들러줬네. ${catName()}가 이 리듬을 조용히 기억해둘게.`);
   }
 
   syncActiveCatFromNavi(state);
@@ -1368,7 +1387,7 @@ function renderChat() {
       if (message.role === "cat") {
         return (
           `<div class="row-nabi${message.loading ? " is-loading" : ""}">` +
-          `${avatar}<div class="msg nabi">${escapeHtml(message.text)}</div></div>`
+          `${avatar}<div class="msg nabi">${escapeHtml(localizeCatSpeech(message.text))}</div></div>`
         );
       }
       return `<div class="row-me"><div class="msg me">${escapeHtml(message.text)}</div></div>`;
@@ -1676,7 +1695,7 @@ function syncActiveChatToHistory() {
 function startNewChat() {
   closeDrawer();
   archiveCurrentChat();
-  state.messages = [...initialState.messages];
+  state.messages = [{ role: "cat", text: getDefaultCatGreeting() }];
   state.footprintDraft = null;
   state.activeChatId = null;
   persist();
