@@ -139,7 +139,6 @@ const els = {
     me: document.querySelector("#meView"),
   },
   authTitle: document.querySelector("#authTitle"),
-  authDescription: document.querySelector("#authDescription"),
   authEmail: document.querySelector("#authEmail"),
   accountCard: document.querySelector("#accountCard"),
   meLoginSection: document.querySelector("#meLoginSection"),
@@ -280,6 +279,20 @@ function getAuthRedirectUrl() {
   // /index.html 과 / 차이로 PKCE·Redirect URL이 어긋나지 않게 통일
   const path = window.location.pathname.replace(/\/index\.html$/i, "/") || "/";
   return `${window.location.origin}${path}`;
+}
+
+function hasAuthSession(session) {
+  return Boolean(session?.user?.id);
+}
+
+function getSessionEmail(session) {
+  const user = session?.user;
+  if (!user) return "";
+  if (user.email) return user.email;
+  const metaEmail = user.user_metadata?.email;
+  if (metaEmail) return metaEmail;
+  const identity = user.identities?.find((item) => item.identity_data?.email);
+  return identity?.identity_data?.email || "";
 }
 
 function showFlowScreen(screenId) {
@@ -652,7 +665,7 @@ async function bootstrapApp() {
     } else {
       showWelcomeFlow();
     }
-    renderAuth(null, "Supabase anon key를 넣으면 Google 로그인을 사용할 수 있어요.");
+    renderAuth(null);
     return;
   }
 
@@ -1049,29 +1062,25 @@ function renderSetup() {
   els.chatSetup.classList.toggle("is-hidden", !setupActive);
 }
 
-function renderAuth(session, fallbackMessage) {
+function renderAuth(session) {
   const configured = isSupabaseConfigured();
-  const email = session?.user?.email;
+  const loggedIn = hasAuthSession(session);
+  const email = getSessionEmail(session);
 
-  els.accountCard?.classList.toggle("is-hidden", !email);
-  els.meLoginSection?.classList.toggle("is-hidden", Boolean(email));
-  els.meLogoutButton?.classList.toggle("is-hidden", !email);
+  els.accountCard?.classList.toggle("is-hidden", !loggedIn);
+  els.meLoginSection?.classList.toggle("is-hidden", loggedIn);
+  els.meLogoutButton?.classList.toggle("is-hidden", !loggedIn);
 
   if (els.googleLogin) {
-    els.googleLogin.disabled = !configured;
-    els.googleLogin.classList.toggle("is-hidden", Boolean(email));
+    els.googleLogin.disabled = !configured || loggedIn;
+    els.googleLogin.classList.toggle("is-hidden", loggedIn);
   }
 
-  setWelcomeGuestAvailable(!email);
-  if (els.storageMode) els.storageMode.textContent = email ? "클라우드 저장" : "로컬 저장";
-  if (els.authEmail) els.authEmail.textContent = email || "";
+  setWelcomeGuestAvailable(!loggedIn);
+  if (els.storageMode) els.storageMode.textContent = loggedIn ? "클라우드 저장" : "로컬 저장";
+  if (els.authEmail) els.authEmail.textContent = email;
   if (els.authTitle) {
     els.authTitle.textContent = configured ? "Google 로그인" : "로컬 모드";
-  }
-  if (els.authDescription) {
-    els.authDescription.textContent = configured
-      ? "로그인하면 오늘의 발자국 요약만 Supabase에 저장돼요."
-      : fallbackMessage || "Supabase 설정 전에는 이 기기에만 저장돼요.";
   }
 }
 
