@@ -132,9 +132,11 @@ const els = {
   profileCatName: document.querySelector("#profileCatName"),
   drawer: document.querySelector("#drawer"),
   scrim: document.querySelector("#scrim"),
+  openNavi: document.querySelector("#openNavi"),
   openMe: document.querySelector("#openMe"),
   views: {
     chat: document.querySelector("#chatView"),
+    navi: document.querySelector("#naviView"),
     footprints: document.querySelector("#footprintsView"),
     me: document.querySelector("#meView"),
   },
@@ -177,6 +179,13 @@ const els = {
   saveFootprint: document.querySelector("#saveFootprint"),
   skipFootprint: document.querySelector("#skipFootprint"),
   footprintList: document.querySelector("#footprintList"),
+  naviProfileNameRow: document.querySelector("#naviProfileNameRow"),
+  naviProfileName: document.querySelector("#naviProfileName"),
+  naviNameEditBtn: document.querySelector("#naviNameEditBtn"),
+  naviNameEditForm: document.querySelector("#naviNameEditForm"),
+  naviNameInput: document.querySelector("#naviNameInput"),
+  naviNameEditCancel: document.querySelector("#naviNameEditCancel"),
+  naviProfileBirthday: document.querySelector("#naviProfileBirthday"),
   naviWalker: document.querySelector("#naviWalker"),
   naviWalkerImage: document.querySelector("#naviWalkerImage"),
   naviBubble: document.querySelector("#naviBubble"),
@@ -208,6 +217,7 @@ let naviRestPose = "front";
 let setupActive = false;
 let setupStep = "userName";
 let currentView = "chat";
+let naviNameEditing = false;
 
 bindEvents();
 render();
@@ -501,6 +511,13 @@ function catName() {
   return (state.navi.name || "").trim() || "나비";
 }
 
+function formatNaviBirthday(birthday) {
+  if (!birthday) return "아직 기록 없음";
+  const [year, month, day] = birthday.split("-").map(Number);
+  if (!year || !month || !day) return birthday;
+  return `${year}년 ${month}월 ${day}일`;
+}
+
 // 로그인 사용자에게만 채팅창 안에서 내 이름 → 고양이 이름 순서로 묻는다.
 function maybeStartSetup() {
   if (setupActive || !authSession?.user?.id) return;
@@ -603,7 +620,11 @@ function stopSetup() {
 }
 
 function bindEvents() {
+  els.openNavi?.addEventListener("click", () => switchView(currentView === "navi" ? "chat" : "navi"));
   els.openMe?.addEventListener("click", () => switchView(currentView === "me" ? "chat" : "me"));
+  els.naviNameEditBtn?.addEventListener("click", openNaviNameEdit);
+  els.naviNameEditForm?.addEventListener("submit", saveNaviName);
+  els.naviNameEditCancel?.addEventListener("click", closeNaviNameEdit);
   els.googleLogin?.addEventListener("click", () => signInWithGoogle(els.googleLogin));
   els.meLogoutButton?.addEventListener("click", signOut);
   els.chatSetupForm?.addEventListener("submit", handleSetupSubmit);
@@ -1052,6 +1073,7 @@ function render() {
   renderInsights();
   renderChatHistory();
   renderProfile();
+  renderNaviProfile();
   renderSetup();
   renderFootprintDraft();
   renderFootprints();
@@ -1131,6 +1153,38 @@ function renderProfile() {
   });
 }
 
+function renderNaviProfile() {
+  const name = catName();
+  if (els.naviProfileName) els.naviProfileName.textContent = name;
+  if (els.naviProfileBirthday) els.naviProfileBirthday.textContent = formatNaviBirthday(state.navi.birthday);
+  els.naviProfileNameRow?.classList.toggle("is-hidden", naviNameEditing);
+  els.naviNameEditForm?.classList.toggle("is-hidden", !naviNameEditing);
+}
+
+function openNaviNameEdit() {
+  naviNameEditing = true;
+  if (els.naviNameInput) els.naviNameInput.value = state.navi.name || "";
+  renderNaviProfile();
+  window.setTimeout(() => els.naviNameInput?.focus(), 50);
+}
+
+function closeNaviNameEdit() {
+  naviNameEditing = false;
+  renderNaviProfile();
+}
+
+function saveNaviName(event) {
+  event.preventDefault();
+  const value = els.naviNameInput?.value.trim();
+  state.navi.name = value || null;
+  closeNaviNameEdit();
+  persist();
+  render();
+  if (currentView === "navi" && els.appSub) {
+    els.appSub.textContent = `${catName()} 프로필`;
+  }
+}
+
 function renderFootprintDraft() {
   if (!els.footprintDraft) return;
   const draft = state.footprintDraft;
@@ -1169,7 +1223,9 @@ function renderFootprints() {
 }
 
 function switchView(viewName) {
+  if (viewName !== "navi") closeNaviNameEdit();
   currentView = viewName;
+  els.openNavi?.classList.toggle("is-active", viewName === "navi");
   els.openMe?.classList.toggle("is-active", viewName === "me");
   Object.entries(els.views).forEach(([name, view]) => {
     if (view) view.classList.toggle("is-active", name === viewName);
@@ -1177,6 +1233,7 @@ function switchView(viewName) {
   document.querySelector(".dock")?.classList.toggle("is-hidden", viewName !== "chat");
   if (els.appSub) {
     if (viewName === "me") els.appSub.textContent = "마이페이지";
+    else if (viewName === "navi") els.appSub.textContent = `${catName()} 프로필`;
     else if (viewName === "footprints") els.appSub.textContent = "나비의 기억";
     else els.appSub.textContent = hasUserMessages() ? `${catName()}와 대화 중` : "새로운 대화";
   }

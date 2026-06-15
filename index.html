@@ -90,6 +90,9 @@
             <div class="sub" id="appSub">새로운 대화</div>
           </div>
           <div class="app-actions">
+            <button class="top-navi-btn" id="openNavi" type="button" data-view="navi" aria-label="나비 프로필">
+              <img src="./assets/navi-face.png" alt="" />
+            </button>
             <button class="top-me-btn" id="openMe" type="button" data-view="me" aria-label="마이페이지">👤</button>
           </div>
         </header>
@@ -147,6 +150,34 @@
                 <button class="secondary-button" id="skipFootprint" type="button">오늘은 넘기기</button>
               </div>
             </section>
+          </section>
+
+          <section class="view" id="naviView" aria-label="나비 프로필">
+            <div class="navi-profile">
+              <div class="navi-profile-hero">
+                <img class="navi-profile-avatar" src="./assets/navi-face.png" alt="" />
+              </div>
+              <p class="eyebrow">나비 프로필</p>
+              <div class="navi-profile-name-row" id="naviProfileNameRow">
+                <h2 class="navi-profile-name" id="naviProfileName">나비</h2>
+                <button class="navi-profile-edit" id="naviNameEditBtn" type="button">수정</button>
+              </div>
+              <form class="navi-profile-edit-form is-hidden" id="naviNameEditForm">
+                <label class="sr-only" for="naviNameInput">고양이 이름</label>
+                <input id="naviNameInput" type="text" maxlength="12" autocomplete="off" placeholder="고양이 이름" />
+                <div class="navi-profile-edit-actions">
+                  <button type="submit">저장</button>
+                  <button class="secondary-button" id="naviNameEditCancel" type="button">취소</button>
+                </div>
+              </form>
+              <dl class="navi-profile-meta">
+                <div>
+                  <dt>생일</dt>
+                  <dd id="naviProfileBirthday">—</dd>
+                  <dd class="navi-profile-hint">첫 만남한 날이에요</dd>
+                </div>
+              </dl>
+            </div>
           </section>
 
           <section class="view" id="footprintsView" aria-label="최근 발자국">

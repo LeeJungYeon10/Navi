@@ -433,7 +433,8 @@ body.is-auth-booting .app-shell {
   cursor: pointer;
 }
 
-.top-me-btn {
+.top-me-btn,
+.top-navi-btn {
   width: 38px;
   height: 38px;
   border-radius: 50%;
@@ -446,9 +447,18 @@ body.is-auth-booting .app-shell {
   align-items: center;
   justify-content: center;
   transition: border-color 0.15s ease, background 0.15s ease;
+  padding: 0;
 }
 
-.top-me-btn.is-active {
+.top-navi-btn img {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.top-me-btn.is-active,
+.top-navi-btn.is-active {
   border-color: var(--nabi);
   background: var(--nabi-wash);
 }
@@ -884,6 +894,144 @@ body.is-auth-booting .app-shell {
   font-size: 0.9rem;
   line-height: 1.45;
   margin-top: 6px;
+}
+
+.navi-profile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 24px 8px 16px;
+}
+
+.navi-profile-hero {
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #fffbf4, #f6f1e6);
+  border: 2px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  box-shadow: 0 10px 24px -14px rgba(223, 132, 48, 0.55);
+}
+
+.navi-profile-avatar {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.navi-profile-name-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 4px 0 18px;
+}
+
+.navi-profile-name {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--ink);
+  margin: 0;
+}
+
+.navi-profile-edit {
+  border: 1.5px solid var(--line);
+  background: #fff;
+  color: var(--ink-soft);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.navi-profile-edit:hover {
+  border-color: var(--nabi);
+  color: var(--nabi-deep);
+}
+
+.navi-profile-edit-form {
+  width: 100%;
+  max-width: 320px;
+  margin: 4px 0 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.navi-profile-edit-form input {
+  width: 100%;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--ink);
+  background: #fff;
+}
+
+.navi-profile-edit-form input:focus {
+  outline: none;
+  border-color: var(--nabi);
+}
+
+.navi-profile-edit-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.navi-profile-edit-actions button[type="submit"] {
+  flex: 1;
+  min-height: 42px;
+  border: none;
+  border-radius: 12px;
+  background: var(--nabi);
+  color: #fff;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.navi-profile-meta {
+  width: 100%;
+  max-width: 320px;
+  display: grid;
+  gap: 12px;
+}
+
+.navi-profile-meta > div {
+  text-align: left;
+  background: #fff;
+  border: 1.5px solid var(--line);
+  border-radius: 16px;
+  padding: 14px 16px;
+}
+
+.navi-profile-meta dt {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--nabi-deep);
+  margin-bottom: 6px;
+}
+
+.navi-profile-meta dd {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.45;
+}
+
+.navi-profile-hint {
+  margin-top: 4px !important;
+  font-size: 0.82rem !important;
+  font-weight: 500 !important;
+  color: var(--ink-faint) !important;
 }
 
 .account-card {
