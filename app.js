@@ -235,8 +235,30 @@ function hasOAuthReturn() {
   return /[?&#](code|access_token)=/.test(`${window.location.search}${window.location.hash}`);
 }
 
+function hasOAuthError() {
+  return /[?&#]error=/.test(`${window.location.search}${window.location.hash}`);
+}
+
+function getOAuthParam(name) {
+  const searchValue = new URLSearchParams(window.location.search).get(name);
+  if (searchValue) return searchValue;
+  const hash = window.location.hash.replace(/^#/, "");
+  return new URLSearchParams(hash).get(name) || "";
+}
+
+function getOAuthErrorMessage() {
+  if (!hasOAuthError()) return "";
+  const description = getOAuthParam("error_description");
+  const code = getOAuthParam("error_code");
+  const error = getOAuthParam("error");
+  const detail = description || code || error;
+  return detail
+    ? `Google 로그인에 실패했어요. Supabase Google Provider와 Redirect URL 설정을 확인해 주세요. (${detail})`
+    : "Google 로그인에 실패했어요. Supabase Google Provider와 Redirect URL 설정을 확인해 주세요.";
+}
+
 function isOAuthAttemptInProgress() {
-  return hasOAuthReturn() || sessionStorage.getItem(OAUTH_PENDING_KEY) === "1";
+  return hasOAuthReturn() || hasOAuthError() || sessionStorage.getItem(OAUTH_PENDING_KEY) === "1";
 }
 
 function markOAuthPending() {
@@ -434,11 +456,13 @@ function closeDrawer() {
 function cleanAuthParamsFromUrl() {
   const url = new URL(window.location.href);
   let changed = false;
-  if (url.searchParams.has("code")) {
-    url.searchParams.delete("code");
-    changed = true;
-  }
-  if (url.hash && /access_token|refresh_token|type=recovery|code=/.test(url.hash)) {
+  ["code", "error", "error_code", "error_description"].forEach((param) => {
+    if (url.searchParams.has(param)) {
+      url.searchParams.delete(param);
+      changed = true;
+    }
+  });
+  if (url.hash && /access_token|refresh_token|type=recovery|code=|error=/.test(url.hash)) {
     url.hash = "";
     changed = true;
   }
@@ -795,7 +819,8 @@ async function bootstrapApp() {
 
   client.auth.onAuthStateChange((event, session) => handleAuthStateChange(event, session));
 
-  const session = await resolveAuthSession(client);
+  const oauthErrorMessage = getOAuthErrorMessage();
+  const session = oauthErrorMessage ? null : await resolveAuthSession(client);
 
   document.body.classList.remove("is-auth-booting");
 
@@ -804,6 +829,12 @@ async function bootstrapApp() {
     authBootstrapped = true;
   } else if (authSession) {
     authBootstrapped = true;
+  } else if (oauthErrorMessage) {
+    clearOAuthPending();
+    cleanAuthParamsFromUrl();
+    showWelcomeFlow();
+    renderAuth(null);
+    showWelcomeAuthError(oauthErrorMessage);
   } else if (isOAuthAttemptInProgress()) {
     enterApp();
     clearOAuthPending();
