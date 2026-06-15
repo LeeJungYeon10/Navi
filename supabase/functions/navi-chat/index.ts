@@ -1,7 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
+const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") ?? "";
+const GEMINI_MODEL = "gemini-2.5-flash-lite";
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
-const MODEL = "gpt-4o-mini";
+const OPENAI_MODEL = "gpt-4o-mini";
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
 const CORS = {
@@ -55,6 +59,8 @@ function catFallback(name: string, text: string) {
     .replaceAll("나비의", `${name}의`);
 }
 
+type ChatMessage = { role: "user" | "assistant"; content: string };
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: CORS });
@@ -63,7 +69,9 @@ serve(async (req: Request) => {
   let catName = "나비";
 
   try {
-    if (!OPENAI_API_KEY) throw new Error("Missing OPENAI_API_KEY");
+    if (!GEMINI_API_KEY && !OPENAI_API_KEY) {
+      throw new Error("Missing GEMINI_API_KEY and OPENAI_API_KEY");
+    }
 
     const { messages, context } = await req.json() as {
       messages: Array<{ role: string; text: string; loading?: boolean }>;
@@ -79,7 +87,7 @@ serve(async (req: Request) => {
     catName = (context?.catName || "나비").trim() || "나비";
     const systemPrompt = buildSystemPrompt(catName);
 
-    const conversation = messages
+    const conversation: ChatMessage[] = messages
       .filter((message) => !message.loading)
       .slice(-10)
       .map((message) => ({
@@ -103,33 +111,19 @@ serve(async (req: Request) => {
       if (last) last.content = `[${tags.join(", ")}]\n${last.content}`;
     }
 
-    const openAiRes = await fetch(OPENAI_URL, {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...conversation
-        ],
-        temperature: 0.85,
-        max_tokens: 220,
-        top_p: 0.9,
-      }),
-    });
+    let raw: string | null = null;
 
-    if (!openAiRes.ok) {
-      const details = await openAiRes.text();
-      console.error("OpenAI API error:", openAiRes.status, details);
-      throw new Error(`OpenAI ${openAiRes.status}`);
+    if (GEMINI_API_KEY) {
+      raw = await callGemini(systemPrompt, conversation);
     }
 
-    const data = await openAiRes.json();
-    const raw = data?.choices?.[0]?.message?.content?.trim() ||
-      `${catName}가 잠깐 생각이 엉켰어. 그래도 네 말은 여기 잘 놓아둘게.`;
+    if (raw == null && OPENAI_API_KEY) {
+      raw = await callOpenAI(systemPrompt, conversation);
+    }
+
+    if (raw == null) {
+      raw = `${catName}가 잠깐 생각이 엉켰어. 그래도 네 말은 여기 잘 놓아둘게.`;
+    }
 
     return json({ text: catFallback(catName, raw) });
   } catch (error) {
@@ -140,12 +134,88 @@ serve(async (req: Request) => {
   }
 });
 
+async function callGemini(systemPrompt: string, conversation: ChatMessage[]): Promise<string | null> {
+  try {
+    const contents = conversation.map((message) => ({
+      role: message.role === "assistant" ? "model" : "user",
+      parts: [{ text: message.content }],
+    }));
+
+    const res = await fetch(GEMINI_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents,
+        generationConfig: {
+          temperature: 0.85,
+          maxOutputTokens: 220,
+          topP: 0.9,
+        },
+        safetySettings: [
+          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_ONLY_HIGH" },
+          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+        ],
+      }),
+    });
+
+    if (!res.ok) {
+      const details = await res.text();
+      console.error("Gemini API error:", res.status, details);
+      return null;
+    }
+
+    const data = await res.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    return text || null;
+  } catch (error) {
+    console.error("Gemini request failed:", error);
+    return null;
+  }
+}
+
+async function callOpenAI(systemPrompt: string, conversation: ChatMessage[]): Promise<string | null> {
+  try {
+    const res = await fetch(OPENAI_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...conversation,
+        ],
+        temperature: 0.85,
+        max_tokens: 220,
+        top_p: 0.9,
+      }),
+    });
+
+    if (!res.ok) {
+      const details = await res.text();
+      console.error("OpenAI API error:", res.status, details);
+      return null;
+    }
+
+    const data = await res.json();
+    const text = data?.choices?.[0]?.message?.content?.trim();
+    return text || null;
+  } catch (error) {
+    console.error("OpenAI request failed:", error);
+    return null;
+  }
+}
+
 function buildContextTags(context?: {
   sleepHours?: number | null;
   activityMinutes?: number | null;
   mood?: string | null;
   wantsFood?: boolean;
-  catName?: string | null;
 }) {
   if (!context) return [];
   const tags: string[] = [];

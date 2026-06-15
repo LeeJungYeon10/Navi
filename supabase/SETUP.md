@@ -71,12 +71,24 @@ http://localhost:5173/
 
 ---
 
-## 4. LLM 연동 — Gemini Flash (무료)
+## 4. LLM 연동 — Gemini Flash(무료) 기본 + OpenAI(유료) 폴백
 
-### 4-1. Gemini API 키 발급
+`navi-chat` Edge Function은 기본적으로 **Gemini 2.5 Flash-Lite(무료 티어)**로 응답하고,
+Gemini 호출이 실패하거나(키 미설정, 429/5xx 등) 응답이 비어 있을 때만
+**OpenAI GPT-4o-mini(유료)**로 자동 전환합니다.
+
+사업자 등록 전(매출 없음) 구간에는 `GEMINI_API_KEY`만 등록해 비용을 0에 가깝게 유지하고,
+`OPENAI_API_KEY`는 안전망으로만 켜 두면 됩니다. 두 키를 모두 등록하면 Gemini가 항상 우선합니다.
+
+### 4-1. Gemini API 키 발급 (기본, 무료)
 
 1. [aistudio.google.com](https://aistudio.google.com) → **Get API key**
 2. 무료 티어: **1,500 req/day, 1M TPM** — MVP 충분.
+
+### 4-1b. OpenAI API 키 (폴백, 유료)
+
+1. [platform.openai.com](https://platform.openai.com/api-keys) → API 키 발급.
+2. Gemini가 막혔을 때만 호출되므로, 결제 한도(usage limit)를 낮게 설정해두면 안전합니다.
 
 ### 4-2. Supabase CLI 설치
 
@@ -99,13 +111,15 @@ npx supabase login
 npx supabase link --project-ref nackdrgjlmglvcyqmsxg
 ```
 
-### 4-4. Gemini API 키를 Supabase Secret으로 등록
+### 4-4. API 키를 Supabase Secret으로 등록
 
 ```bash
-npx supabase secrets set GEMINI_API_KEY=여기에_발급받은_키
+npx supabase secrets set GEMINI_API_KEY=여기에_발급받은_Gemini_키
+npx supabase secrets set OPENAI_API_KEY=여기에_발급받은_OpenAI_키
 ```
 
-키가 서버에만 저장되고 프론트에는 노출되지 않습니다.
+`OPENAI_API_KEY`는 폴백용이라 생략 가능합니다(생략 시 Gemini만 사용).
+키는 서버에만 저장되고 프론트에는 노출되지 않습니다.
 
 ### 4-5. Edge Function 배포
 
@@ -148,8 +162,10 @@ python -m http.server 5173
 - [ ] Supabase SQL Editor에서 schema.sql 실행
 - [ ] Supabase에서 Google OAuth 활성화 (Client ID / Secret 입력)
 - [ ] Redirect URL 등록 (localhost + 배포 URL)
-- [ ] Gemini API 키 발급
+- [ ] Gemini API 키 발급 (기본/무료)
+- [ ] OpenAI API 키 발급 (폴백/유료, 선택)
 - [ ] `supabase secrets set GEMINI_API_KEY=...`
+- [ ] `supabase secrets set OPENAI_API_KEY=...` (선택)
 - [ ] `supabase functions deploy navi-chat --no-verify-jwt`
 - [ ] `supabase functions deploy delete-account --no-verify-jwt`
 - [ ] curl로 Edge Function 동작 확인
