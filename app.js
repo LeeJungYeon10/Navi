@@ -263,6 +263,14 @@ function hasReturningAuth() {
 }
 
 function showWelcomeAuthError(message) {
+  const appVisible = !els.appShell?.classList.contains("is-hidden");
+  if (appVisible) {
+    addCatMessage(message);
+    if (els.appSub) els.appSub.textContent = "로그인에 문제가 있어요";
+    render();
+    return;
+  }
+
   const google = document.querySelector("#welcomeGoogle");
   if (!google) {
     addCatMessage(message);
@@ -432,17 +440,55 @@ async function finishAuthSession(session, { hydrate = true } = {}) {
   return true;
 }
 
-async function handleAuthCallback(client) {
+async function resolveAuthSession(client) {
   const code = new URLSearchParams(window.location.search).get("code");
-  if (!code) return null;
-
-  const { data, error } = await client.auth.exchangeCodeForSession(code);
-  if (error) {
-    console.error("Auth callback exchange failed:", error);
-    showWelcomeAuthError(`로그인 처리 중 문제가 생겼어요. ${error.message}`);
-    return null;
+  if (code) {
+    const { data, error } = await client.auth.exchangeCodeForSession(code);
+    if (error) {
+      console.error("Auth callback exchange failed:", error);
+      showWelcomeAuthError(`로그인 처리 중 문제가 생겼어요. ${error.message}`);
+    } else if (data.session) {
+      cleanAuthParamsFromUrl();
+      return data.session;
+    }
   }
-  return data.session;
+
+  const { data, error } = await client.auth.getSession();
+  if (error) console.error("getSession failed:", error);
+  return data.session ?? null;
+}
+
+function handleAuthStateChange(event, session) {
+  if (event === "TOKEN_REFRESHED" && session) {
+    authSession = session;
+    renderAuth(session);
+    return;
+  }
+
+  if (event === "SIGNED_OUT") {
+    authSession = null;
+    authHydrated = false;
+    authBootstrapped = false;
+    stopSetup();
+    renderAuth(null);
+    if (state.flags?.appEntered) enterApp();
+    else showWelcomeFlow();
+    return;
+  }
+
+  // INITIAL_SESSION null은 "아직 로그인 안 함"일 뿐 로그아웃이 아니다.
+  if (!session) return;
+
+  if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+    if (authBootstrapped && authSession?.user?.id === session.user.id) {
+      authSession = session;
+      renderAuth(session);
+      return;
+    }
+    void finishAuthSession(session, { hydrate: !authHydrated }).then(() => {
+      authBootstrapped = true;
+    });
+  }
 }
 
 function initWelcome() {
@@ -690,17 +736,14 @@ async function bootstrapApp() {
     return;
   }
 
-  let session = await handleAuthCallback(client);
-  if (!session) {
-    const { data, error } = await client.auth.getSession();
-    if (error) console.error("getSession failed:", error);
-    session = data.session;
-  }
+  client.auth.onAuthStateChange((event, session) => handleAuthStateChange(event, session));
+
+  const session = await resolveAuthSession(client);
 
   document.body.classList.remove("is-auth-booting");
 
   if (session) {
-    await finishAuthSession(session);
+    if (!authSession) await finishAuthSession(session, { hydrate: !authHydrated });
     authBootstrapped = true;
   } else if (state.flags?.appEntered) {
     enterApp();
@@ -709,32 +752,6 @@ async function bootstrapApp() {
     showWelcomeFlow();
     renderAuth(null);
   }
-
-  client.auth.onAuthStateChange(async (event, session) => {
-    if (event === "TOKEN_REFRESHED" && session) {
-      authSession = session;
-      renderAuth(session);
-      return;
-    }
-    if (!session) {
-      authSession = null;
-      authHydrated = false;
-      authBootstrapped = false;
-      stopSetup();
-      renderAuth(null);
-      if (state.flags?.appEntered) {
-        enterApp();
-      } else {
-        showWelcomeFlow();
-      }
-      return;
-    }
-    if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
-      if (authBootstrapped && event === "INITIAL_SESSION") return;
-      await finishAuthSession(session, { hydrate: !authHydrated });
-      authBootstrapped = true;
-    }
-  });
 }
 
 async function signInWithGoogle(triggerButton = null) {
@@ -767,7 +784,10 @@ async function signInWithGoogle(triggerButton = null) {
   const redirectTo = getAuthRedirectUrl();
   const { data, error } = await client.auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo },
+    options: {
+      redirectTo,
+      queryParams: { prompt: "select_account" },
+    },
   });
 
   if (error) {
