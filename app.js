@@ -209,6 +209,7 @@ const els = {
   naviWalker: document.querySelector("#naviWalker"),
   naviWalkerImage: document.querySelector("#naviWalkerImage"),
   naviBubble: document.querySelector("#naviBubble"),
+  composer: document.querySelector(".composer"),
 };
 
 if (shouldRestoreOnLoad()) {
@@ -1480,33 +1481,53 @@ function switchView(viewName) {
     else if (viewName === "footprints") els.appSub.textContent = "나비의 기억";
     else els.appSub.textContent = hasUserMessages() ? `${catName()}와 대화 중` : "새로운 대화";
   }
+  if (viewName === "chat") window.setTimeout(() => moveNaviToComposer("", { instant: true }), 80);
   closeDrawer();
 }
 
 function initNaviWalker() {
   if (!els.naviWalker) return;
   requestAnimationFrame(() => {
-    moveNaviNear(document.querySelector(".cat-stage"), "나비가 산책 중이에요.", { instant: true });
+    moveNaviToComposer("나비가 여기서 기다릴게.", { instant: true });
     scheduleNaviWalk();
   });
-  window.addEventListener("resize", () => moveNaviToQuietSpot());
+  window.addEventListener("resize", () => {
+    if (isChatComposerVisible()) moveNaviToComposer("", { instant: true });
+    else moveNaviToQuietSpot();
+  });
 }
 
 function scheduleNaviWalk() {
   window.clearTimeout(naviWalkTimer);
   naviWalkTimer = window.setTimeout(() => {
-    moveNaviToQuietSpot();
+    if (isChatComposerVisible()) moveNaviToComposer(randomNaviBubble());
+    else moveNaviToQuietSpot();
     scheduleNaviWalk();
   }, 7000 + Math.random() * 5000);
 }
 
+function isChatComposerVisible() {
+  return currentView === "chat" && els.composer && !els.composer.closest(".dock")?.classList.contains("is-hidden");
+}
+
+function moveNaviToComposer(bubbleText = "", options = {}) {
+  const target = els.composer || els.messageInput;
+  if (!target) return;
+  moveNaviNear(target, bubbleText, { ...options, anchor: "composer" });
+}
+
 function moveNaviNear(target, bubbleText = "", options = {}) {
   if (!els.naviWalker || !target) return;
-  naviRestPose = "front";
+  naviRestPose = options.anchor === "composer" ? "aspect" : "front";
   const rect = target.getBoundingClientRect();
   const walkerWidth = els.naviWalker.getBoundingClientRect().width || 140;
-  const x = clamp(rect.left + rect.width / 2 - walkerWidth / 2, 14, window.innerWidth - walkerWidth - 14);
-  const y = clamp(rect.top - walkerWidth * 0.56, 86, window.innerHeight - walkerWidth - 18);
+  const isComposerAnchor = options.anchor === "composer" || target === els.messageInput || target === els.composer;
+  const x = isComposerAnchor
+    ? clamp(rect.left + 18, 14, window.innerWidth - walkerWidth - 14)
+    : clamp(rect.left + rect.width / 2 - walkerWidth / 2, 14, window.innerWidth - walkerWidth - 14);
+  const y = isComposerAnchor
+    ? clamp(rect.top - walkerWidth * 0.82, 86, window.innerHeight - walkerWidth - 18)
+    : clamp(rect.top - walkerWidth * 0.56, 86, window.innerHeight - walkerWidth - 18);
   setNaviPosition(x, y, bubbleText, options);
 }
 
