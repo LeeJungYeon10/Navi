@@ -613,7 +613,7 @@ function bindEvents() {
 
   document.querySelector("#openDrawer")?.addEventListener("click", openDrawer);
   els.scrim?.addEventListener("click", closeDrawer);
-  document.querySelector("#newChatFab")?.addEventListener("click", startNewChat);
+  document.querySelector("#newChatDrawer")?.addEventListener("click", startNewChat);
 
   els.chatHistoryList?.addEventListener("click", (event) => {
     const item = event.target.closest("[data-chat-id]");
