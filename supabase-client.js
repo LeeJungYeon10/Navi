@@ -17,9 +17,7 @@ export async function getSupabase() {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
-      // OAuth code 교환은 app.js에서 한 번만 처리한다 (이중 교환·세션 유실 방지).
-      detectSessionInUrl: false,
-      flowType: "pkce",
+      detectSessionInUrl: true,
       storage: window.localStorage,
     },
   });

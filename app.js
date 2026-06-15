@@ -217,6 +217,9 @@ let naviRestPose = "front";
 let setupActive = false;
 let setupStep = "userName";
 let currentView = "chat";
+const OAUTH_PENDING_KEY = "navi-oauth-pending";
+let authBootstrapComplete = false;
+let finishingAuthSession = false;
 let naviNameEditing = false;
 
 bindEvents();
@@ -228,6 +231,26 @@ bootstrapApp();
 
 function hasOAuthReturn() {
   return /[?&#](code|access_token)=/.test(`${window.location.search}${window.location.hash}`);
+}
+
+function isOAuthAttemptInProgress() {
+  return hasOAuthReturn() || sessionStorage.getItem(OAUTH_PENDING_KEY) === "1";
+}
+
+function markOAuthPending() {
+  try {
+    sessionStorage.setItem(OAUTH_PENDING_KEY, "1");
+  } catch {
+    // sessionStorage unavailable
+  }
+}
+
+function clearOAuthPending() {
+  try {
+    sessionStorage.removeItem(OAUTH_PENDING_KEY);
+  } catch {
+    // sessionStorage unavailable
+  }
 }
 
 function hasStoredAuthSession() {
@@ -424,33 +447,58 @@ function cleanAuthParamsFromUrl() {
 
 async function finishAuthSession(session, { hydrate = true } = {}) {
   if (!session?.user) return false;
-  authSession = session;
-  renderAuth(authSession);
-  cleanAuthParamsFromUrl();
-  if (hydrate && !authHydrated) {
-    authHydrated = true;
-    await hydrateFromCloud();
+  if (finishingAuthSession) return Boolean(authSession);
+  if (authSession?.user?.id === session.user.id && authBootstrapped) {
+    authSession = session;
+    renderAuth(session);
+    return true;
   }
-  if (!hasCompletedLoginSetup()) {
-    showProfileScreen();
-  } else {
+
+  finishingAuthSession = true;
+  try {
+    authSession = session;
+    state.flags = { ...(state.flags || {}), appEntered: true };
+    clearOAuthPending();
+    renderAuth(authSession);
+    cleanAuthParamsFromUrl();
+    if (hydrate && !authHydrated) {
+      authHydrated = true;
+      await hydrateFromCloud();
+    }
     enterApp();
+    if (!hasCompletedLoginSetup()) startSetup();
+    persist();
+    render();
+    return true;
+  } finally {
+    finishingAuthSession = false;
   }
-  render();
-  return true;
 }
 
 async function resolveAuthSession(client) {
-  const code = new URLSearchParams(window.location.search).get("code");
-  if (code) {
-    const { data, error } = await client.auth.exchangeCodeForSession(code);
-    if (error) {
-      console.error("Auth callback exchange failed:", error);
-      showWelcomeAuthError(`로그인 처리 중 문제가 생겼어요. ${error.message}`);
-    } else if (data.session) {
-      cleanAuthParamsFromUrl();
-      return data.session;
+  if (hasOAuthReturn()) {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const { data, error } = await client.auth.getSession();
+      if (error) console.error("getSession failed:", error);
+      if (data.session) {
+        cleanAuthParamsFromUrl();
+        return data.session;
+      }
+      if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
     }
+
+    const code = new URLSearchParams(window.location.search).get("code");
+    if (code) {
+      const { data, error } = await client.auth.exchangeCodeForSession(code);
+      if (error) {
+        console.error("Auth callback exchange failed:", error);
+        showWelcomeAuthError(`로그인 처리 중 문제가 생겼어요. ${error.message}`);
+      } else if (data.session) {
+        cleanAuthParamsFromUrl();
+        return data.session;
+      }
+    }
+    return null;
   }
 
   const { data, error } = await client.auth.getSession();
@@ -459,6 +507,8 @@ async function resolveAuthSession(client) {
 }
 
 function handleAuthStateChange(event, session) {
+  if (!authBootstrapComplete && (event === "INITIAL_SESSION" || event === "SIGNED_IN")) return;
+
   if (event === "TOKEN_REFRESHED" && session) {
     authSession = session;
     renderAuth(session);
@@ -469,6 +519,7 @@ function handleAuthStateChange(event, session) {
     authSession = null;
     authHydrated = false;
     authBootstrapped = false;
+    clearOAuthPending();
     stopSetup();
     renderAuth(null);
     if (state.flags?.appEntered) enterApp();
@@ -476,17 +527,11 @@ function handleAuthStateChange(event, session) {
     return;
   }
 
-  // INITIAL_SESSION null은 "아직 로그인 안 함"일 뿐 로그아웃이 아니다.
   if (!session) return;
 
   if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
-    if (authBootstrapped && authSession?.user?.id === session.user.id) {
-      authSession = session;
-      renderAuth(session);
-      return;
-    }
-    void finishAuthSession(session, { hydrate: !authHydrated }).then(() => {
-      authBootstrapped = true;
+    void finishAuthSession(session, { hydrate: !authHydrated }).then((ok) => {
+      if (ok) authBootstrapped = true;
     });
   }
 }
@@ -745,6 +790,11 @@ async function bootstrapApp() {
   if (session) {
     if (!authSession) await finishAuthSession(session, { hydrate: !authHydrated });
     authBootstrapped = true;
+  } else if (isOAuthAttemptInProgress()) {
+    enterApp();
+    clearOAuthPending();
+    showWelcomeAuthError("로그인 세션을 불러오지 못했어요. 다시 시도해 주세요.");
+    renderAuth(null);
   } else if (state.flags?.appEntered) {
     enterApp();
     renderAuth(null);
@@ -752,6 +802,8 @@ async function bootstrapApp() {
     showWelcomeFlow();
     renderAuth(null);
   }
+
+  authBootstrapComplete = true;
 }
 
 async function signInWithGoogle(triggerButton = null) {
@@ -781,6 +833,7 @@ async function signInWithGoogle(triggerButton = null) {
   }
 
   setWelcomeGuestAvailable(false);
+  markOAuthPending();
   const redirectTo = getAuthRedirectUrl();
   const { data, error } = await client.auth.signInWithOAuth({
     provider: "google",
@@ -792,6 +845,7 @@ async function signInWithGoogle(triggerButton = null) {
 
   if (error) {
     restoreButtons();
+    clearOAuthPending();
     showWelcomeAuthError(`로그인을 시작하지 못했어요. ${error.message}`);
     return;
   }
@@ -801,6 +855,7 @@ async function signInWithGoogle(triggerButton = null) {
     return;
   }
 
+  clearOAuthPending();
   restoreButtons();
   showWelcomeAuthError("Google 로그인 페이지로 이동하지 못했어요. 다시 시도해 주세요.");
 }
