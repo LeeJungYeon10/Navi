@@ -412,7 +412,7 @@ function showProfileScreen() {
   if (els.profileCatName) els.profileCatName.value = state.navi.name || "나비";
 }
 
-function finishProfileFlow() {
+async function finishProfileFlow() {
   const userName = els.profileUserName?.value.trim();
   const cat = els.profileCatName?.value.trim();
   if (userName) state.profile.name = userName;
@@ -426,7 +426,8 @@ function finishProfileFlow() {
   setupActive = false;
   if (els.chatSetup) els.chatSetup.classList.add("is-hidden");
   persist();
-  syncToCloud();
+  await syncAuthDisplayName();
+  await syncToCloud();
   enterApp();
 }
 
@@ -744,6 +745,7 @@ function finishSetup() {
   };
   if (els.chatSetup) els.chatSetup.classList.add("is-hidden");
   persist();
+  void syncAuthDisplayName();
   syncToCloud();
   switchView("chat");
   render();
@@ -797,7 +799,7 @@ function bindEvents() {
     }
   });
 
-  els.profileForm?.addEventListener("submit", (event) => {
+  els.profileForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const formData = new FormData(els.profileForm);
     state.profile = {
@@ -808,6 +810,7 @@ function bindEvents() {
     };
     const name = state.profile.name || "너";
     addCatMessage(`${name}에게 맞춰 기억해둘게. 오늘 목표는 ${state.profile.goal}, 대화 톤은 ${state.profile.tone}.`);
+    await syncAuthDisplayName();
     switchView("chat");
     persist();
     render();
@@ -1718,12 +1721,39 @@ async function hydrateFromCloud() {
   ]);
   if (profile) {
     state.profile = { name: profile.display_name || "", goal: profile.goal || initialState.profile.goal, tone: profile.tone || initialState.profile.tone, focus: profile.focus || [] };
+    await syncAuthDisplayName();
   }
   if (footprints?.length) state.footprints = footprints.map(normalizeFootprintRecord);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   render();
 }
 
+async function syncAuthDisplayName() {
+  const displayName = (state.profile.name || "").trim();
+  if (!displayName || !authSession?.user || !supabase) return;
+
+  const metadata = authSession.user.user_metadata || {};
+  if (metadata.display_name === displayName && metadata.name === displayName && metadata.full_name === displayName) return;
+
+  const { data, error } = await supabase.auth.updateUser({
+    data: {
+      ...metadata,
+      display_name: displayName,
+      name: displayName,
+      full_name: displayName,
+    },
+  });
+
+  if (error) {
+    console.error("Auth display name sync failed:", error);
+    return;
+  }
+
+  if (data.user) {
+    authSession = { ...authSession, user: data.user };
+    renderAuth(authSession);
+  }
+}
 async function syncToCloud() {
   if (!authSession || !supabase) return;
   const userId = authSession.user.id;
