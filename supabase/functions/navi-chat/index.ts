@@ -1,8 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") ?? "";
-const MODEL = "gemini-2.5-flash-lite";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
+const MODEL = "gpt-4o-mini";
+const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -43,7 +43,7 @@ function buildSystemPrompt(catName: string) {
 [응답 방식]
 - 사용자의 최근 메시지와 제공된 context 태그만 참고한다.
 - context 태그를 그대로 노출하지 않는다.
-- 마지막에는 아주 작은 행동 하나를 제안해도 된다. 예: 4-6 호흡 3번, 물 한 잔, 3분 쉬기, 창문 열기.`;
+- 마지막에는 아주 작은 행동 하나를 제안해도 된다. 예: 4-6 호흡 3번, 물 한 잔, 3분 쉬기, 창문 열기, ${name}(이)와 대화 더 해보자, 산책하기.`;
 }
 
 function catFallback(name: string, text: string) {
@@ -63,7 +63,7 @@ serve(async (req: Request) => {
   let catName = "나비";
 
   try {
-    if (!GEMINI_API_KEY) throw new Error("Missing GEMINI_API_KEY");
+    if (!OPENAI_API_KEY) throw new Error("Missing OPENAI_API_KEY");
 
     const { messages, context } = await req.json() as {
       messages: Array<{ role: string; text: string; loading?: boolean }>;
@@ -83,11 +83,11 @@ serve(async (req: Request) => {
       .filter((message) => !message.loading)
       .slice(-10)
       .map((message) => ({
-        role: message.role === "cat" ? "model" : "user",
-        parts: [{ text: message.text }],
+        role: message.role === "cat" ? "assistant" : "user",
+        content: message.text,
       }));
 
-    while (conversation.length && conversation[0].role === "model") {
+    while (conversation.length && conversation[0].role === "assistant") {
       conversation.shift();
     }
 
@@ -100,37 +100,35 @@ serve(async (req: Request) => {
     const tags = buildContextTags(context);
     if (tags.length) {
       const last = conversation.at(-1);
-      if (last) last.parts[0].text = `[${tags.join(", ")}]\n${last.parts[0].text}`;
+      if (last) last.content = `[${tags.join(", ")}]\n${last.content}`;
     }
 
-    const geminiRes = await fetch(GEMINI_URL, {
+    const openAiRes = await fetch(OPENAI_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${OPENAI_API_KEY}`
+      },
       body: JSON.stringify({
-        system_instruction: { parts: [{ text: systemPrompt }] },
-        contents: conversation,
-        generationConfig: {
-          temperature: 0.85,
-          maxOutputTokens: 220,
-          topP: 0.9,
-        },
-        safetySettings: [
-          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_ONLY_HIGH" },
-          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+        model: MODEL,
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...conversation
         ],
+        temperature: 0.85,
+        max_tokens: 220,
+        top_p: 0.9,
       }),
     });
 
-    if (!geminiRes.ok) {
-      const details = await geminiRes.text();
-      console.error("Gemini API error:", geminiRes.status, details);
-      throw new Error(`Gemini ${geminiRes.status}`);
+    if (!openAiRes.ok) {
+      const details = await openAiRes.text();
+      console.error("OpenAI API error:", openAiRes.status, details);
+      throw new Error(`OpenAI ${openAiRes.status}`);
     }
 
-    const data = await geminiRes.json();
-    const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
+    const data = await openAiRes.json();
+    const raw = data?.choices?.[0]?.message?.content?.trim() ||
       `${catName}가 잠깐 생각이 엉켰어. 그래도 네 말은 여기 잘 놓아둘게.`;
 
     return json({ text: catFallback(catName, raw) });
