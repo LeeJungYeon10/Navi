@@ -200,7 +200,6 @@
               <p class="account-note">발자국 요약이 이 계정에 동기화돼요.</p>
               <div class="account-actions">
                 <span class="privacy-chip" id="storageMode">클라우드 저장</span>
-                <button class="btn btn-ghost" id="meLogoutButton" type="button">로그아웃</button>
               </div>
             </div>
 
@@ -233,6 +232,11 @@
               </label>
               <button type="submit">저장하기</button>
             </form>
+
+            <div class="account-bottom-actions is-hidden" id="accountBottomActions" aria-live="polite">
+              <button class="btn btn-ghost" id="meLogoutButton" type="button">로그아웃</button>
+              <button class="btn btn-danger" id="deleteAccountButton" type="button">회원탈퇴</button>
+            </div>
           </section>
         </div>
 

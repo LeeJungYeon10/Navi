@@ -144,8 +144,10 @@ const els = {
   authEmail: document.querySelector("#authEmail"),
   accountCard: document.querySelector("#accountCard"),
   meLoginSection: document.querySelector("#meLoginSection"),
+  accountBottomActions: document.querySelector("#accountBottomActions"),
   googleLogin: document.querySelector("#googleLogin"),
   meLogoutButton: document.querySelector("#meLogoutButton"),
+  deleteAccountButton: document.querySelector("#deleteAccountButton"),
   storageMode: document.querySelector("#storageMode"),
   chatLog: document.querySelector("#chatLog"),
   chatForm: document.querySelector("#chatForm"),
@@ -727,6 +729,7 @@ function bindEvents() {
   els.naviNameEditCancel?.addEventListener("click", closeNaviNameEdit);
   els.googleLogin?.addEventListener("click", () => signInWithGoogle(els.googleLogin));
   els.meLogoutButton?.addEventListener("click", signOut);
+  els.deleteAccountButton?.addEventListener("click", deleteAccount);
   els.chatSetupForm?.addEventListener("submit", handleSetupSubmit);
   els.chatSetupSkip?.addEventListener("click", handleSetupSkip);
   els.saveFootprint?.addEventListener("click", saveFootprint);
@@ -874,15 +877,98 @@ async function signInWithGoogle(triggerButton = null) {
 async function signOut() {
   const client = await getSupabaseClient();
   if (!client) return;
-  await client.auth.signOut();
+
+  const buttons = [els.meLogoutButton, els.deleteAccountButton].filter(Boolean);
+  buttons.forEach((button) => {
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+  });
+
+  try {
+    await client.auth.signOut();
+  } finally {
+    buttons.forEach((button) => {
+      button.disabled = false;
+      button.removeAttribute("aria-busy");
+    });
+    authSession = null;
+    authHydrated = false;
+    authBootstrapped = false;
+    state.flags = { ...(state.flags || {}), appEntered: false };
+    stopSetup();
+    persist();
+    renderAuth(null);
+    showWelcomeFlow();
+    render();
+  }
+}
+
+async function deleteAccount() {
+  const client = await getSupabaseClient();
+  const session = authSession;
+  if (!client || !session?.access_token || !session?.user?.id) {
+    window.alert("로그인 상태를 확인할 수 없어요. 다시 로그인한 뒤 시도해 주세요.");
+    return;
+  }
+
+  const firstConfirm = window.confirm("회원탈퇴하면 Google 계정 연결과 나비의 클라우드 기록이 삭제돼요. 계속할까요?");
+  if (!firstConfirm) return;
+
+  const typed = window.prompt("정말 탈퇴하려면 '회원탈퇴'를 입력해 주세요.");
+  if (typed !== "회원탈퇴") return;
+
+  const buttons = [els.deleteAccountButton, els.meLogoutButton].filter(Boolean);
+  buttons.forEach((button) => {
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+  });
+
+  try {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/delete-account`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        apikey: SUPABASE_ANON_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ userId: session.user.id }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.error || "회원탈퇴 처리에 실패했어요.");
+    }
+
+    await client.auth.signOut().catch(() => {});
+    resetLocalAccountState();
+    renderAuth(null);
+    showWelcomeFlow();
+    render();
+    window.alert("회원탈퇴가 완료됐어요.");
+  } catch (error) {
+    console.error("delete account failed:", error);
+    const message = error instanceof Error ? error.message : "알 수 없는 오류가 발생했어요.";
+    window.alert(`회원탈퇴를 완료하지 못했어요. ${message}`);
+  } finally {
+    buttons.forEach((button) => {
+      button.disabled = false;
+      button.removeAttribute("aria-busy");
+    });
+  }
+}
+
+function resetLocalAccountState() {
   authSession = null;
   authHydrated = false;
   authBootstrapped = false;
-  state.flags = { ...(state.flags || {}), appEntered: false };
+  clearOAuthPending();
   stopSetup();
-  persist();
-  renderAuth(null);
-  showWelcomeFlow();
+
+  const freshState = structuredClone(initialState);
+  Object.keys(state).forEach((key) => delete state[key]);
+  Object.assign(state, freshState);
+
+  localStorage.removeItem(STORAGE_KEY);
+  LEGACY_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
 }
 
 async function receiveUserMessage(message) {
@@ -1177,7 +1263,9 @@ function renderAuth(session) {
 
   els.accountCard?.classList.toggle("is-hidden", !loggedIn);
   els.meLoginSection?.classList.toggle("is-hidden", loggedIn);
+  els.accountBottomActions?.classList.toggle("is-hidden", !loggedIn);
   els.meLogoutButton?.classList.toggle("is-hidden", !loggedIn);
+  els.deleteAccountButton?.classList.toggle("is-hidden", !loggedIn);
 
   if (els.googleLogin) {
     els.googleLogin.disabled = !configured || loggedIn;

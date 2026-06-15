@@ -106,6 +106,7 @@ npx supabase secrets set GEMINI_API_KEY=여기에_발급받은_키
 
 ```bash
 npx supabase functions deploy navi-chat --no-verify-jwt
+npx supabase functions deploy delete-account --no-verify-jwt
 ```
 
 > `--no-verify-jwt` 옵션은 익명 사용자도 Edge Function을 호출할 수 있게 합니다.
@@ -145,6 +146,7 @@ python -m http.server 5173
 - [ ] Gemini API 키 발급
 - [ ] `supabase secrets set GEMINI_API_KEY=...`
 - [ ] `supabase functions deploy navi-chat --no-verify-jwt`
+- [ ] `supabase functions deploy delete-account --no-verify-jwt`
 - [ ] curl로 Edge Function 동작 확인
 
 ---

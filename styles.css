@@ -1101,6 +1101,24 @@ body.is-auth-booting .app-shell {
   color: var(--nabi-deep);
 }
 
+.btn-danger {
+  border: 1.5px solid #e0b5a9;
+  background: #fff7f4;
+  color: #b54b36;
+}
+
+.btn-danger:hover {
+  border-color: #d66d56;
+  color: #9d3927;
+}
+
+.account-bottom-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
 .privacy-chip {
   padding: 7px 10px;
   border-radius: 999px;
