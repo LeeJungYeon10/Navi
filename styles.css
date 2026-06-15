@@ -38,6 +38,10 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+body.is-auth-booting .app-shell {
+  pointer-events: none;
+}
+
 .nabi-voice {
   font-family: "Gowun Dodum", sans-serif;
 }

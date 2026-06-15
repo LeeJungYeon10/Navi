@@ -18,6 +18,7 @@ export async function getSupabase() {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
+      storage: window.localStorage,
     },
   });
 }

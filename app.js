@@ -104,13 +104,15 @@ const initialState = {
   activeChatId: null,
   footprintDraft: null,
   footprints: [],
-  flags: { setupDone: false, loginSetupDone: false, loginSetupUserId: null },
+  flags: { setupDone: false, loginSetupDone: false, loginSetupUserId: null, appEntered: false },
 };
 
 const state = loadState();
 markDailyVisit();
+
 let authSession = null;
 let authHydrated = false;
+let authBootstrapped = false;
 let syncTimer = null;
 let dismissWelcome = () => {};
 let pendingWelcomeMessage = null;
@@ -179,6 +181,10 @@ const els = {
   naviBubble: document.querySelector("#naviBubble"),
 };
 
+if (shouldRestoreOnLoad()) {
+  prepareRestoredAppShell();
+}
+
 let naviPosition = { x: 170, y: 230 };
 let naviWalkTimer = null;
 let naviBubbleTimer = null;
@@ -206,7 +212,43 @@ render();
 registerServiceWorker();
 initNaviWalker();
 initWelcome();
-supabaseReady.then(() => initializeAuth());
+bootstrapApp();
+
+function hasOAuthReturn() {
+  return /[?&#](code|access_token)=/.test(`${window.location.search}${window.location.hash}`);
+}
+
+function hasStoredAuthSession() {
+  if (hasOAuthReturn()) return true;
+  try {
+    return Object.keys(localStorage).some((key) => {
+      if (!localStorage.getItem(key)) return false;
+      return key.includes("-auth-token") || /^sb-.*-auth-token/.test(key);
+    });
+  } catch {
+    return false;
+  }
+}
+
+function shouldRestoreOnLoad() {
+  return hasStoredAuthSession() || Boolean(state.flags?.appEntered);
+}
+
+function prepareRestoredAppShell() {
+  document.querySelectorAll(".flow-screen").forEach((screen) => screen.classList.remove("flow-screen--active"));
+  els.appShell?.classList.remove("is-hidden");
+  document.body.classList.add("is-auth-booting");
+}
+
+function showWelcomeFlow() {
+  document.body.classList.remove("is-auth-booting");
+  els.appShell?.classList.add("is-hidden");
+  showFlowScreen("welcomeScreen");
+}
+
+function hasReturningAuth() {
+  return hasStoredAuthSession();
+}
 
 function showWelcomeAuthError(message) {
   const google = document.querySelector("#welcomeGoogle");
@@ -245,11 +287,14 @@ function showFlowScreen(screenId) {
 }
 
 function enterApp() {
+  state.flags = { ...(state.flags || {}), appEntered: true };
+  document.body.classList.remove("is-auth-booting");
   document.querySelectorAll(".flow-screen").forEach((screen) => screen.classList.remove("flow-screen--active"));
   els.appShell?.classList.remove("is-hidden");
   closeDrawer();
   switchView("chat");
   updateGreetingLine();
+  persist();
   render();
 }
 
@@ -375,16 +420,6 @@ async function handleAuthCallback(client) {
   return data.session;
 }
 
-function hasReturningAuth() {
-  const url = `${window.location.search}${window.location.hash}`;
-  if (/[?&#](code|access_token)=/.test(url)) return true;
-  try {
-    return Object.keys(localStorage).some((key) => key.includes("-auth-token") && localStorage.getItem(key));
-  } catch {
-    return false;
-  }
-}
-
 function initWelcome() {
   const screen = document.querySelector("#welcomeScreen");
   if (!screen) return;
@@ -392,6 +427,7 @@ function initWelcome() {
   dismissWelcome = dismissWelcomeScreen;
 
   const returningAuth = hasReturningAuth();
+  const restoringApp = shouldRestoreOnLoad();
   if (returningAuth) {
     setWelcomeGuestAvailable(false);
   }
@@ -403,7 +439,7 @@ function initWelcome() {
   const skip = document.querySelector("#welcomeSkip");
   const google = document.querySelector("#welcomeGoogle");
 
-  if (!returningAuth) {
+  if (!returningAuth && !restoringApp) {
     const name = (state.profile.name || "").trim();
     const fullText = `${name ? name + "야, " : ""}오늘 나는 널 만나서 기분이 좋아.\n너의 기분은 어때?`;
     let index = 0;
@@ -605,35 +641,62 @@ function bindEvents() {
   });
 }
 
-async function initializeAuth() {
+async function bootstrapApp() {
   const client = await getSupabaseClient();
   if (!isSupabaseConfigured() || !client) {
+    document.body.classList.remove("is-auth-booting");
+    if (state.flags?.appEntered) {
+      enterApp();
+    } else {
+      showWelcomeFlow();
+    }
     renderAuth(null, "Supabase anon key를 넣으면 Google 로그인을 사용할 수 있어요.");
     return;
   }
 
-  // OAuth 복귀 URL(?code=)을 명시적으로 세션으로 교환
   let session = await handleAuthCallback(client);
   if (!session) {
-    const { data } = await client.auth.getSession();
+    const { data, error } = await client.auth.getSession();
+    if (error) console.error("getSession failed:", error);
     session = data.session;
   }
 
+  document.body.classList.remove("is-auth-booting");
+
   if (session) {
     await finishAuthSession(session);
+    authBootstrapped = true;
+  } else if (state.flags?.appEntered) {
+    enterApp();
+    renderAuth(null);
   } else {
+    showWelcomeFlow();
     renderAuth(null);
   }
 
   client.auth.onAuthStateChange(async (event, session) => {
-    if (session && (event === "SIGNED_IN" || event === "INITIAL_SESSION")) {
-      await finishAuthSession(session, { hydrate: !authHydrated });
+    if (event === "TOKEN_REFRESHED" && session) {
+      authSession = session;
+      renderAuth(session);
       return;
     }
     if (!session) {
       authSession = null;
-      renderAuth(null);
+      authHydrated = false;
+      authBootstrapped = false;
       stopSetup();
+      renderAuth(null);
+      if (state.flags?.appEntered) {
+        enterApp();
+      } else {
+        showWelcomeFlow();
+      }
+      return;
+    }
+    if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+      if (authBootstrapped && event === "INITIAL_SESSION") return;
+      await finishAuthSession(session, { hydrate: !authHydrated });
+      authBootstrapped = true;
     }
   });
 }
@@ -687,13 +750,17 @@ async function signInWithGoogle(triggerButton = null) {
 }
 
 async function signOut() {
-  if (!supabase) return;
-  await supabase.auth.signOut();
+  const client = await getSupabaseClient();
+  if (!client) return;
+  await client.auth.signOut();
   authSession = null;
   authHydrated = false;
+  authBootstrapped = false;
+  state.flags = { ...(state.flags || {}), appEntered: false };
   stopSetup();
+  persist();
   renderAuth(null);
-  showFlowScreen("welcomeScreen");
+  showWelcomeFlow();
 }
 
 async function receiveUserMessage(message) {
