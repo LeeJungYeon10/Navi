@@ -611,10 +611,11 @@ function initWelcome() {
   const google = document.querySelector("#welcomeGoogle");
 
   if (!returningAuth && !restoringApp) {
-    const name = (state.profile.name || "").trim();
-    const fullText = `${name ? name + "야, " : ""}오늘 나는 널 만나서 기분이 좋아.\n너의 기분은 어때?`;
+    const fullText = "안녕, 나는 오늘\n널 만나서 기분이 좋아.";
     let index = 0;
     let typing = true;
+
+    if (textEl) textEl.innerHTML = "";
 
     function type() {
       if (!typing || !textEl) return;
