@@ -31,11 +31,9 @@ body {
 }
 
 body {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   min-height: 100vh;
-  background: radial-gradient(circle at 50% 0%, #f0e8da 0%, #e2d9c8 100%);
+  min-height: 100dvh;
+  background: var(--paper);
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
 }
@@ -46,27 +44,11 @@ body {
 
 .device {
   position: relative;
-  width: min(390px, 100%);
-  height: min(844px, 100vh);
-  max-height: 100vh;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
   overflow: hidden;
-  border-radius: 44px;
   background: var(--paper);
-  box-shadow: var(--shadow), 0 0 0 10px #1c1a17, 0 0 0 12px #2c2823;
-}
-
-@media (max-width: 430px) {
-  body {
-    padding: 0;
-  }
-
-  .device {
-    width: 100%;
-    height: 100vh;
-    max-height: none;
-    border-radius: 0;
-    box-shadow: none;
-  }
 }
 
 /* ── Flow screens (온보딩 · 응답 · 프로필) ── */
