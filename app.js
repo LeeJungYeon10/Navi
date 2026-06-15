@@ -434,17 +434,24 @@ function showProfileScreen() {
 }
 
 async function finishProfileFlow() {
-  const userName = els.profileUserName?.value.trim();
-  const cat = els.profileCatName?.value.trim();
-  if (userName) state.profile.name = userName;
-  if (cat) state.navi.name = cat;
-  syncActiveCatFromNavi(state);
-  markLoginSetupComplete(authSession?.user?.id);
-  setupActive = false;
-  if (els.chatSetup) els.chatSetup.classList.add("is-hidden");
-  persist();
-  await syncProfileToCloud();
-  enterApp();
+  try {
+    const userName = els.profileUserName?.value.trim();
+    const cat = els.profileCatName?.value.trim();
+    if (!state.profile) state.profile = {};
+    if (!state.navi) state.navi = {};
+    if (userName) state.profile.name = userName;
+    if (cat) state.navi.name = cat;
+    syncActiveCatFromNavi(state);
+    markLoginSetupComplete(authSession?.user?.id);
+    setupActive = false;
+    if (els.chatSetup) els.chatSetup.classList.add("is-hidden");
+    persist();
+    await syncProfileToCloud();
+  } catch (err) {
+    console.error("finishProfileFlow error:", err);
+  } finally {
+    enterApp();
+  }
 }
 
 function continueAfterResponse() {
@@ -1841,9 +1848,9 @@ async function syncAuthProfileMetadata(clientIn) {
   if (!authSession?.user || !client) return false;
 
   const metadata = authSession.user.user_metadata || {};
-  const displayName = (state.profile.name || "").trim();
-  const catName = (state.navi.name || "").trim();
-  const birthday = state.navi.birthday || "";
+  const displayName = (state.profile?.name || "").trim();
+  const catName = (state.navi?.name || "").trim();
+  const birthday = state.navi?.birthday || "";
   const onboardingComplete = Boolean(
     state.flags?.loginSetupDone && state.flags?.loginSetupUserId === authSession.user.id,
   );
@@ -1888,14 +1895,14 @@ async function syncProfileToCloud(clientIn) {
   await syncAuthProfileMetadata(client);
 
   const userId = authSession.user.id;
-  const displayName = (state.profile.name || "").trim();
+  const displayName = (state.profile?.name || "").trim();
   const { error } = await client.from("profiles").upsert(
     {
       user_id: userId,
       display_name: displayName || null,
-      goal: state.profile.goal,
-      tone: state.profile.tone,
-      focus: state.profile.focus,
+      goal: state.profile?.goal,
+      tone: state.profile?.tone,
+      focus: state.profile?.focus,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "user_id" },
