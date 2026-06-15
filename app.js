@@ -128,12 +128,11 @@ const els = {
   appEmpty: document.querySelector("#appEmpty"),
   appSub: document.querySelector("#appSub"),
   greetLine: document.querySelector("#greetLine"),
-  composerCatName: document.querySelector("#composerCatName"),
   profileUserName: document.querySelector("#profileUserName"),
   profileCatName: document.querySelector("#profileCatName"),
   drawer: document.querySelector("#drawer"),
   scrim: document.querySelector("#scrim"),
-  tabs: document.querySelectorAll(".botnav .nav"),
+  openMe: document.querySelector("#openMe"),
   views: {
     chat: document.querySelector("#chatView"),
     footprints: document.querySelector("#footprintsView"),
@@ -141,8 +140,11 @@ const els = {
   },
   authTitle: document.querySelector("#authTitle"),
   authDescription: document.querySelector("#authDescription"),
+  authEmail: document.querySelector("#authEmail"),
+  accountCard: document.querySelector("#accountCard"),
+  meLoginSection: document.querySelector("#meLoginSection"),
   googleLogin: document.querySelector("#googleLogin"),
-  logoutButton: document.querySelector("#logoutButton"),
+  meLogoutButton: document.querySelector("#meLogoutButton"),
   storageMode: document.querySelector("#storageMode"),
   chatLog: document.querySelector("#chatLog"),
   chatForm: document.querySelector("#chatForm"),
@@ -206,6 +208,7 @@ let naviRestPose = "front";
 // 채팅 셋업 상태 — 최상위 render() 호출보다 먼저 선언해야 TDZ(초기화 전 접근) 오류가 없다.
 let setupActive = false;
 let setupStep = "userName";
+let currentView = "chat";
 
 bindEvents();
 render();
@@ -307,7 +310,6 @@ function updateGreetingLine() {
   if (els.greetLine) {
     els.greetLine.innerHTML = name ? `안녕 ${escapeHtml(name)},<br>오늘 하루는 어땠어?` : "안녕,<br>오늘 하루는 어땠어?";
   }
-  if (els.composerCatName) els.composerCatName.textContent = catName();
 }
 
 function setChatEmpty(isEmpty) {
@@ -588,9 +590,9 @@ function stopSetup() {
 }
 
 function bindEvents() {
-  els.tabs.forEach((tab) => tab.addEventListener("click", () => switchView(tab.dataset.view)));
+  els.openMe?.addEventListener("click", () => switchView(currentView === "me" ? "chat" : "me"));
   els.googleLogin?.addEventListener("click", () => signInWithGoogle(els.googleLogin));
-  els.logoutButton?.addEventListener("click", signOut);
+  els.meLogoutButton?.addEventListener("click", signOut);
   els.chatSetupForm?.addEventListener("submit", handleSetupSubmit);
   els.chatSetupSkip?.addEventListener("click", handleSetupSkip);
   els.saveFootprint?.addEventListener("click", saveFootprint);
@@ -1050,19 +1052,26 @@ function renderSetup() {
 function renderAuth(session, fallbackMessage) {
   const configured = isSupabaseConfigured();
   const email = session?.user?.email;
+
+  els.accountCard?.classList.toggle("is-hidden", !email);
+  els.meLoginSection?.classList.toggle("is-hidden", Boolean(email));
+  els.meLogoutButton?.classList.toggle("is-hidden", !email);
+
   if (els.googleLogin) {
+    els.googleLogin.disabled = !configured;
     els.googleLogin.classList.toggle("is-hidden", Boolean(email));
   }
-  els.logoutButton?.classList.toggle("is-hidden", !email);
+
   setWelcomeGuestAvailable(!email);
   if (els.storageMode) els.storageMode.textContent = email ? "클라우드 저장" : "로컬 저장";
-  if (els.authTitle) els.authTitle.textContent = email ? "로그인됨" : configured ? "Google 로그인" : "로컬 모드";
+  if (els.authEmail) els.authEmail.textContent = email || "";
+  if (els.authTitle) {
+    els.authTitle.textContent = configured ? "Google 로그인" : "로컬 모드";
+  }
   if (els.authDescription) {
-    els.authDescription.textContent = email
-      ? `${email} 계정에 발자국 요약만 동기화 중`
-      : configured
-        ? "로그인하면 오늘의 발자국 요약만 Supabase에 저장돼요."
-        : fallbackMessage || "Supabase 설정 전에는 이 기기에만 저장돼요.";
+    els.authDescription.textContent = configured
+      ? "로그인하면 오늘의 발자국 요약만 Supabase에 저장돼요."
+      : fallbackMessage || "Supabase 설정 전에는 이 기기에만 저장돼요.";
   }
 }
 
@@ -1151,11 +1160,17 @@ function renderFootprints() {
 }
 
 function switchView(viewName) {
-  els.tabs.forEach((tab) => tab.classList.toggle("is-active", tab.dataset.view === viewName));
+  currentView = viewName;
+  els.openMe?.classList.toggle("is-active", viewName === "me");
   Object.entries(els.views).forEach(([name, view]) => {
     if (view) view.classList.toggle("is-active", name === viewName);
   });
   document.querySelector(".dock")?.classList.toggle("is-hidden", viewName !== "chat");
+  if (els.appSub) {
+    if (viewName === "me") els.appSub.textContent = "마이페이지";
+    else if (viewName === "footprints") els.appSub.textContent = "나비의 기억";
+    else els.appSub.textContent = hasUserMessages() ? `${catName()}와 대화 중` : "새로운 대화";
+  }
   closeDrawer();
 }
 
