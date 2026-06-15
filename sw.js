@@ -1,4 +1,4 @@
-const CACHE_NAME = "hello-naviya-pwa-v46";
+const CACHE_NAME = "hello-naviya-pwa-v47";
 const NAVI_FRAMES = Array.from(
   { length: 22 },
   (_, index) => `./assets/navi-frames/navi-${String(index + 1).padStart(2, "0")}.png`,

@@ -89,6 +89,22 @@ const labels = {
 };
 
 const DAILY_BOND_LIMIT = 12;
+const DEFAULT_CAT_ID = "cat-navi";
+const DEFAULT_NAVI_STATE = {
+  dailyBondDate: null,
+  dailyBondGain: 0,
+  lastVisitDate: null,
+  streak: 0,
+  lastStreakBonusDate: null,
+  lastLevelMessage: 1,
+  birthday: null,
+  name: null,
+};
+const DEFAULT_CAT_SLOT = {
+  id: DEFAULT_CAT_ID,
+  ...DEFAULT_NAVI_STATE,
+  avatar: "navi",
+};
 const NAVI_LEVELS = [
   { level: 1, minBond: 0, name: "새끼 나비", copy: "처음 만난 나비가 조심스럽게 곁에 앉아 있어요." },
   { level: 2, minBond: 30, name: "어린 나비", copy: "나비가 조금 더 편하게 먼저 다가오고 있어요." },
@@ -98,7 +114,9 @@ const NAVI_LEVELS = [
 const initialState = {
   profile: { name: "", goal: "정서적 안정", tone: "다정하고 차분하게", focus: [] },
   day: { sleepHours: null, activityMinutes: null, mood: null, energy: "보통", bond: 42, routines: [] },
-  navi: { dailyBondDate: null, dailyBondGain: 0, lastVisitDate: null, streak: 0, lastStreakBonusDate: null, lastLevelMessage: 1, birthday: null, name: null },
+  navi: { ...DEFAULT_NAVI_STATE },
+  cats: [{ ...DEFAULT_CAT_SLOT }],
+  activeCatId: DEFAULT_CAT_ID,
   messages: [{ role: "cat", text: "안녕, 나는 나비야. 오늘 잠은 어땠고 몸은 어느 정도 움직였는지 편하게 말해줘." }],
   chatHistory: [],
   activeChatId: null,
@@ -1271,6 +1289,7 @@ function markDailyVisit() {
     addCatMessage("7일째 들러줬네. 나비가 이 리듬을 조용히 기억해둘게.");
   }
 
+  syncActiveCatFromNavi(state);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
@@ -1702,6 +1721,7 @@ function renderChatHistory() {
 }
 
 function persist() {
+  syncActiveCatFromNavi(state);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   queueCloudSync();
 }
@@ -1781,11 +1801,11 @@ async function syncToCloud() {
 function loadState() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY) || LEGACY_STORAGE_KEYS.map((key) => localStorage.getItem(key)).find(Boolean);
-    if (!stored) return structuredClone(initialState);
+    if (!stored) return ensureCatState(structuredClone(initialState));
     const parsed = JSON.parse(stored);
-    return deepMerge(initialState, normalizePersistedState(parsed));
+    return ensureCatState(deepMerge(initialState, normalizePersistedState(parsed)));
   } catch {
-    return structuredClone(initialState);
+    return ensureCatState(structuredClone(initialState));
   }
 }
 
@@ -1796,6 +1816,8 @@ function normalizePersistedState(value) {
   if (!normalized.navi && normalized.nabi) {
     normalized.navi = normalized.nabi;
   }
+
+  normalizeCatCollection(normalized);
 
   if (normalized.footprintDraft && typeof normalized.footprintDraft === "object") {
     normalized.footprintDraft = normalizeFootprintRecord(normalized.footprintDraft);
@@ -1820,6 +1842,72 @@ function normalizePersistedState(value) {
   return normalized;
 }
 
+function normalizeCatCollection(target) {
+  const legacyNavi = target.navi && typeof target.navi === "object" ? target.navi : {};
+  const cats = Array.isArray(target.cats) ? target.cats : [];
+  const normalizedCats = cats
+    .filter((cat) => cat && typeof cat === "object")
+    .map((cat, index) => normalizeCatSlot(cat, { id: index === 0 ? DEFAULT_CAT_ID : `cat-${index + 1}` }));
+
+  if (!normalizedCats.length) {
+    normalizedCats.push(normalizeCatSlot({ ...legacyNavi, id: DEFAULT_CAT_ID }));
+  }
+
+  target.cats = normalizedCats;
+  if (!target.activeCatId || !normalizedCats.some((cat) => cat.id === target.activeCatId)) {
+    target.activeCatId = normalizedCats[0].id;
+  }
+
+  const activeCat = normalizedCats.find((cat) => cat.id === target.activeCatId) || normalizedCats[0];
+  target.navi = catToNaviState(activeCat);
+}
+
+function normalizeCatSlot(value, fallback = {}) {
+  const source = value && typeof value === "object" ? value : {};
+  const id = typeof source.id === "string" && source.id.trim() ? source.id : fallback.id || DEFAULT_CAT_ID;
+  return {
+    ...DEFAULT_CAT_SLOT,
+    ...fallback,
+    ...source,
+    id,
+  };
+}
+
+function catToNaviState(cat) {
+  const { id, avatar, ...navi } = normalizeCatSlot(cat);
+  return {
+    ...DEFAULT_NAVI_STATE,
+    ...navi,
+  };
+}
+
+function syncActiveCatFromNavi(target = state) {
+  const navi = target.navi && typeof target.navi === "object" ? target.navi : {};
+  const cats = Array.isArray(target.cats) ? target.cats : [];
+  target.cats = cats
+    .filter((cat) => cat && typeof cat === "object")
+    .map((cat, index) => normalizeCatSlot(cat, { id: index === 0 ? DEFAULT_CAT_ID : `cat-${index + 1}` }));
+
+  if (!target.cats.length) {
+    target.cats.push(normalizeCatSlot({ ...navi, id: DEFAULT_CAT_ID }));
+  }
+
+  if (!target.activeCatId || !target.cats.some((cat) => cat.id === target.activeCatId)) {
+    target.activeCatId = target.cats[0].id;
+  }
+
+  const activeIndex = target.cats.findIndex((cat) => cat.id === target.activeCatId);
+  target.cats[activeIndex] = normalizeCatSlot({
+    ...target.cats[activeIndex],
+    ...navi,
+    id: target.cats[activeIndex].id,
+  });
+}
+
+function ensureCatState(target) {
+  normalizeCatCollection(target);
+  return target;
+}
 function normalizeFootprintRecord(item) {
   if (!item || typeof item !== "object") return item;
   if (item.navi_note !== undefined) return item;
