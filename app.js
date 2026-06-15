@@ -100,6 +100,8 @@ const initialState = {
   day: { sleepHours: null, activityMinutes: null, mood: null, energy: "보통", bond: 42, routines: [] },
   navi: { dailyBondDate: null, dailyBondGain: 0, lastVisitDate: null, streak: 0, lastStreakBonusDate: null, lastLevelMessage: 1, birthday: null, name: null },
   messages: [{ role: "cat", text: "안녕, 나는 나비야. 오늘 잠은 어땠고 몸은 어느 정도 움직였는지 편하게 말해줘." }],
+  chatHistory: [],
+  activeChatId: null,
   footprintDraft: null,
   footprints: [],
   flags: { setupDone: false, loginSetupDone: false, loginSetupUserId: null },
@@ -149,6 +151,8 @@ const els = {
   moodMetric: document.querySelector("#moodMetric"),
   energyMetric: document.querySelector("#energyMetric"),
   insightList: document.querySelector("#insightList"),
+  chatHistoryList: document.querySelector("#chatHistoryList"),
+  chatHistorySearch: document.querySelector("#chatHistorySearch"),
   bondLabel: document.querySelector("#bondLabel"),
   naviLevelLabel: document.querySelector("#naviLevelLabel"),
   chatSetup: document.querySelector("#chatSetup"),
@@ -558,14 +562,15 @@ function bindEvents() {
 
   document.querySelector("#openDrawer")?.addEventListener("click", openDrawer);
   els.scrim?.addEventListener("click", closeDrawer);
-  document.querySelector("#newChatFab")?.addEventListener("click", () => {
-    closeDrawer();
-    state.messages = [...initialState.messages];
-    state.footprintDraft = null;
-    persist();
-    switchView("chat");
-    render();
+  document.querySelector("#newChatFab")?.addEventListener("click", startNewChat);
+
+  els.chatHistoryList?.addEventListener("click", (event) => {
+    const item = event.target.closest("[data-chat-id]");
+    if (!item) return;
+    loadChatHistory(item.dataset.chatId);
   });
+
+  els.chatHistorySearch?.addEventListener("input", () => renderChatHistory());
 
   els.chatForm?.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -712,6 +717,7 @@ async function receiveUserMessage(message) {
   else state.messages.push({ role: "cat", text: reply });
 
   state.footprintDraft = buildFootprintDraft(context);
+  syncActiveChatToHistory();
   persist();
   render();
 }
@@ -962,6 +968,7 @@ function render() {
   renderChat();
   renderMetrics();
   renderInsights();
+  renderChatHistory();
   renderProfile();
   renderSetup();
   renderFootprintDraft();
@@ -1178,6 +1185,150 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
+function createChatId() {
+  return crypto.randomUUID();
+}
+
+function getFirstUserMessage(messages = state.messages) {
+  return messages.find((message) => message.role === "user")?.text?.trim() || "";
+}
+
+function getChatPreview(messages = state.messages) {
+  const last = [...messages].reverse().find((message) => message.role === "cat" && !message.loading);
+  return (last?.text || "대화 기록").replace(/\s+/g, " ").slice(0, 72);
+}
+
+function deriveChatTitle(messages = state.messages) {
+  const first = getFirstUserMessage(messages);
+  if (!first) return "새 대화";
+  return first.length > 24 ? `${first.slice(0, 24)}…` : first;
+}
+
+function formatHistoryTime(iso) {
+  if (!iso) return "";
+  const date = new Date(iso);
+  const today = getToday();
+  const day = iso.slice(0, 10);
+  if (day === today) {
+    return date.toLocaleTimeString("ko-KR", { hour: "numeric", minute: "2-digit" });
+  }
+  const diffDays = Math.floor((new Date(`${today}T00:00:00`) - new Date(`${day}T00:00:00`)) / 86400000);
+  if (diffDays < 7) {
+    return date.toLocaleDateString("ko-KR", { weekday: "short" });
+  }
+  return date.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" });
+}
+
+function buildChatHistoryEntry(id, messages, createdAt) {
+  const cleanMessages = messages.filter((message) => !message.loading).map((message) => ({ ...message }));
+  const now = new Date().toISOString();
+  return {
+    id,
+    title: deriveChatTitle(cleanMessages),
+    snippet: getChatPreview(cleanMessages),
+    messages: cleanMessages,
+    createdAt: createdAt || now,
+    updatedAt: now,
+  };
+}
+
+function archiveCurrentChat() {
+  if (!hasUserMessages()) return null;
+  const id = state.activeChatId || createChatId();
+  const existing = state.chatHistory.find((entry) => entry.id === id);
+  const entry = buildChatHistoryEntry(id, state.messages, existing?.createdAt);
+  state.chatHistory = [entry, ...state.chatHistory.filter((item) => item.id !== id)].slice(0, 30);
+  state.activeChatId = id;
+  return id;
+}
+
+function syncActiveChatToHistory() {
+  if (!state.activeChatId || !hasUserMessages()) return;
+  const index = state.chatHistory.findIndex((entry) => entry.id === state.activeChatId);
+  if (index < 0) return;
+  state.chatHistory[index] = buildChatHistoryEntry(state.activeChatId, state.messages, state.chatHistory[index].createdAt);
+}
+
+function startNewChat() {
+  closeDrawer();
+  archiveCurrentChat();
+  state.messages = [...initialState.messages];
+  state.footprintDraft = null;
+  state.activeChatId = null;
+  persist();
+  switchView("chat");
+  render();
+}
+
+function getVisibleChatHistory(query = "") {
+  const items = [...(state.chatHistory || [])].sort(
+    (a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt),
+  );
+
+  const hasDraft = hasUserMessages() && !items.some((entry) => entry.id === state.activeChatId);
+  if (hasDraft) {
+    items.unshift({
+      id: state.activeChatId || "__draft__",
+      title: deriveChatTitle(),
+      snippet: getChatPreview(),
+      updatedAt: new Date().toISOString(),
+      isDraft: true,
+    });
+  }
+
+  if (!query) return items;
+  return items.filter((entry) => `${entry.title} ${entry.snippet}`.toLowerCase().includes(query));
+}
+
+function loadChatHistory(chatId) {
+  if (chatId === "__draft__") {
+    closeDrawer();
+    switchView("chat");
+    return;
+  }
+  const entry = state.chatHistory.find((item) => item.id === chatId);
+  if (!entry) return;
+  if (state.activeChatId === chatId) {
+    closeDrawer();
+    switchView("chat");
+    return;
+  }
+  archiveCurrentChat();
+  state.messages = entry.messages.map((message) => ({ ...message }));
+  state.activeChatId = chatId;
+  state.footprintDraft = null;
+  closeDrawer();
+  switchView("chat");
+  render();
+}
+
+function renderChatHistory() {
+  if (!els.chatHistoryList) return;
+  const query = (els.chatHistorySearch?.value || "").trim().toLowerCase();
+  const items = getVisibleChatHistory(query);
+
+  if (!items.length) {
+    els.chatHistoryList.innerHTML =
+      `<p class="hist-empty">${query ? "검색 결과가 없어요." : "아직 저장된 대화가 없어요.<br>새 대화를 시작하면 여기에 쌓여요."}</p>`;
+    return;
+  }
+
+  els.chatHistoryList.innerHTML = items
+    .map((entry) => {
+      const isActive = entry.id === state.activeChatId || (entry.isDraft && !state.activeChatId);
+      return `
+        <button class="hist${isActive ? " is-active" : ""}${entry.isDraft ? " is-draft" : ""}" type="button" data-chat-id="${escapeHtml(entry.id)}">
+          <div class="top">
+            <span class="htitle">${escapeHtml(entry.isDraft ? "지금 대화" : entry.title)}</span>
+            <span class="htime">${escapeHtml(entry.isDraft ? "진행 중" : formatHistoryTime(entry.updatedAt || entry.createdAt))}</span>
+          </div>
+          <div class="hsnip">${escapeHtml(entry.snippet)}</div>
+        </button>
+      `;
+    })
+    .join("");
+}
+
 function persist() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   queueCloudSync();
@@ -1253,6 +1404,18 @@ function normalizePersistedState(value) {
 
   if (Array.isArray(normalized.footprints)) {
     normalized.footprints = normalized.footprints.map(normalizeFootprintRecord);
+  }
+
+  if (!Array.isArray(normalized.chatHistory)) {
+    normalized.chatHistory = [];
+  } else {
+    normalized.chatHistory = normalized.chatHistory
+      .filter((entry) => entry && typeof entry === "object" && Array.isArray(entry.messages))
+      .slice(0, 30);
+  }
+
+  if (normalized.activeChatId != null && typeof normalized.activeChatId !== "string") {
+    normalized.activeChatId = null;
   }
 
   return normalized;

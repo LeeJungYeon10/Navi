@@ -225,15 +225,12 @@
             <span id="bondLabel">유대감 42%</span> · <span id="naviLevelLabel">Lv.1 새끼 나비</span>
           </div>
         </div>
-        <div class="dw-sec">오늘 요약</div>
-        <dl class="metric-grid drawer-metrics">
-          <div><dt>수면</dt><dd id="sleepMetric">미입력</dd></div>
-          <div><dt>활동</dt><dd id="activityMetric">미입력</dd></div>
-          <div><dt>감정</dt><dd id="moodMetric">미입력</dd></div>
-          <div><dt>에너지</dt><dd id="energyMetric">보통</dd></div>
-        </dl>
-        <div class="dw-sec">나비 피드백</div>
-        <ul class="drawer-insights" id="insightList"></ul>
+        <label class="dw-search" for="chatHistorySearch">
+          <span aria-hidden="true">🔍</span>
+          <input id="chatHistorySearch" type="search" placeholder="지난 대화 검색하기..." autocomplete="off" />
+        </label>
+        <div class="dw-sec">최근 대화</div>
+        <div class="dw-scroll" id="chatHistoryList"></div>
         <button class="dw-fab" id="newChatFab" type="button" aria-label="새 대화">✎</button>
       </aside>
     </div>
