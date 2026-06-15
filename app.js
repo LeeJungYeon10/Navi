@@ -477,18 +477,16 @@ async function finishAuthSession(session, { hydrate = true } = {}) {
   if (authSession?.user?.id === session.user.id && authBootstrapped) {
     authSession = session;
     renderAuth(session);
-    enterApp();
+    if (hasCompletedLoginSetup()) enterApp();
+    else showProfileScreen();
     return true;
   }
 
   finishingAuthSession = (async () => {
     authSession = session;
-    state.flags = { ...(state.flags || {}), appEntered: true };
     clearOAuthPending();
     renderAuth(authSession);
     cleanAuthParamsFromUrl();
-
-    enterApp();
 
     if (hydrate && !authHydrated) {
       authHydrated = true;
@@ -499,7 +497,9 @@ async function finishAuthSession(session, { hydrate = true } = {}) {
       }
     }
 
-    if (!hasCompletedLoginSetup()) startSetup();
+    if (hasCompletedLoginSetup()) enterApp();
+    else showProfileScreen();
+
     persist();
     render();
     return true;
