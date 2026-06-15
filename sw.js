@@ -1,4 +1,4 @@
-const CACHE_NAME = "hello-naviya-pwa-v22";
+const CACHE_NAME = "hello-naviya-pwa-v25";
 const NAVI_FRAMES = Array.from(
   { length: 22 },
   (_, index) => `./assets/navi-frames/navi-${String(index + 1).padStart(2, "0")}.png`,
@@ -34,6 +34,9 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  const url = new URL(event.request.url);
+  // OAuth 복귀(?code=)는 캐시/가로채기 없이 네트워크로 처리
+  if (url.searchParams.has("code") || url.hash.includes("access_token")) return;
   event.respondWith(
     fetch(event.request)
       .then((response) => {

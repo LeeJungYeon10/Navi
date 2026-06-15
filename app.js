@@ -3,7 +3,20 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./supabase-config.js";
 
 const STORAGE_KEY = "hello-naviya-state-v4";
 const LEGACY_STORAGE_KEYS = ["hello-nabiya-state-v3"];
-const supabase = await getSupabase();
+
+// Supabase CDN 로드가 느리거나 실패해도 온보딩·로그인 버튼은 바로 동작하게 비동기 초기화
+let supabase = null;
+const supabaseReady = isSupabaseConfigured()
+  ? getSupabase()
+      .then((client) => {
+        supabase = client;
+        return client;
+      })
+      .catch((error) => {
+        console.error("Supabase init failed:", error);
+        return null;
+      })
+  : Promise.resolve(null);
 
 // ── 세션 시간 추적 (화면 오픈 시간 보너스용) ──────────────────────────
 // Notion 설계: 패널티 없는 순수 보너스 방식
@@ -95,16 +108,32 @@ const initialState = {
 const state = loadState();
 markDailyVisit();
 let authSession = null;
+let authHydrated = false;
 let syncTimer = null;
 let dismissWelcome = () => {};
+let pendingWelcomeMessage = null;
+
+const MOOD_RESPONSES = {
+  good: "너도 기분이 좋다니 다행이야!<br>그럼 우리 산책하러 가자 🐾",
+  meh: "그렇구나.<br>기분이 안 좋을 땐 좀 걷는 게<br>도움이 된대. 같이 걸어볼까?",
+  free: "들려줘서 고마워.<br>잠깐 같이 바람 쐬러 갈까? 🐾",
+};
 
 const els = {
-  tabs: document.querySelectorAll(".tab"),
+  appShell: document.querySelector("#appShell"),
+  appEmpty: document.querySelector("#appEmpty"),
+  appSub: document.querySelector("#appSub"),
+  greetLine: document.querySelector("#greetLine"),
+  composerCatName: document.querySelector("#composerCatName"),
+  profileUserName: document.querySelector("#profileUserName"),
+  profileCatName: document.querySelector("#profileCatName"),
+  drawer: document.querySelector("#drawer"),
+  scrim: document.querySelector("#scrim"),
+  tabs: document.querySelectorAll(".botnav .nav"),
   views: {
     chat: document.querySelector("#chatView"),
     footprints: document.querySelector("#footprintsView"),
-    onboarding: document.querySelector("#onboardingView"),
-    routine: document.querySelector("#routineView"),
+    me: document.querySelector("#meView"),
   },
   authTitle: document.querySelector("#authTitle"),
   authDescription: document.querySelector("#authDescription"),
@@ -120,10 +149,8 @@ const els = {
   moodMetric: document.querySelector("#moodMetric"),
   energyMetric: document.querySelector("#energyMetric"),
   insightList: document.querySelector("#insightList"),
-  catMood: document.querySelector("#catMood"),
   bondLabel: document.querySelector("#bondLabel"),
   naviLevelLabel: document.querySelector("#naviLevelLabel"),
-  naviAgeLabel: document.querySelector("#naviAgeLabel"),
   chatSetup: document.querySelector("#chatSetup"),
   chatSetupStep: document.querySelector("#chatSetupStep"),
   chatSetupTitle: document.querySelector("#chatSetupTitle"),
@@ -132,9 +159,7 @@ const els = {
   chatSetupInput: document.querySelector("#chatSetupInput"),
   chatSetupSubmit: document.querySelector("#chatSetupSubmit"),
   chatSetupSkip: document.querySelector("#chatSetupSkip"),
-  resetDay: document.querySelector("#resetDay"),
   profileForm: document.querySelector("#profileForm"),
-  completeRoutine: document.querySelector("#completeRoutine"),
   footprintDraft: document.querySelector("#footprintDraft"),
   draftMood: document.querySelector("#draftMood"),
   draftSleep: document.querySelector("#draftSleep"),
@@ -168,12 +193,183 @@ const NAVI_REST_POSES = {
 };
 let naviRestPose = "front";
 
+// 채팅 셋업 상태 — 최상위 render() 호출보다 먼저 선언해야 TDZ(초기화 전 접근) 오류가 없다.
+let setupActive = false;
+let setupStep = "userName";
+
 bindEvents();
 render();
 registerServiceWorker();
 initNaviWalker();
 initWelcome();
-await initializeAuth();
+supabaseReady.then(() => initializeAuth());
+
+function showWelcomeAuthError(message) {
+  const google = document.querySelector("#welcomeGoogle");
+  if (!google) {
+    addCatMessage(message);
+    render();
+    return;
+  }
+  let err = document.querySelector("#welcomeAuthError");
+  if (!err) {
+    err = document.createElement("p");
+    err.id = "welcomeAuthError";
+    err.className = "welcome-auth-error";
+    err.setAttribute("role", "alert");
+    google.insertAdjacentElement("afterend", err);
+  }
+  err.textContent = message;
+  setWelcomeGuestAvailable(true);
+}
+
+async function getSupabaseClient() {
+  return supabase || (await supabaseReady);
+}
+
+function getAuthRedirectUrl() {
+  // /index.html 과 / 차이로 PKCE·Redirect URL이 어긋나지 않게 통일
+  const path = window.location.pathname.replace(/\/index\.html$/i, "/") || "/";
+  return `${window.location.origin}${path}`;
+}
+
+function showFlowScreen(screenId) {
+  document.querySelectorAll(".flow-screen").forEach((screen) => {
+    screen.classList.toggle("flow-screen--active", screen.id === screenId);
+  });
+  els.appShell?.classList.add("is-hidden");
+}
+
+function enterApp() {
+  document.querySelectorAll(".flow-screen").forEach((screen) => screen.classList.remove("flow-screen--active"));
+  els.appShell?.classList.remove("is-hidden");
+  closeDrawer();
+  switchView("chat");
+  updateGreetingLine();
+  render();
+}
+
+function dismissWelcomeScreen() {
+  enterApp();
+}
+
+function updateGreetingLine() {
+  const name = (state.profile.name || "").trim();
+  if (els.greetLine) {
+    els.greetLine.innerHTML = name ? `안녕 ${escapeHtml(name)},<br>오늘 하루는 어땠어?` : "안녕,<br>오늘 하루는 어땠어?";
+  }
+  if (els.composerCatName) els.composerCatName.textContent = catName();
+}
+
+function setChatEmpty(isEmpty) {
+  els.appEmpty?.classList.toggle("is-hidden", !isEmpty);
+  if (els.appSub) els.appSub.textContent = isEmpty ? "새로운 대화" : `${catName()}와 대화 중`;
+}
+
+function hasUserMessages() {
+  return state.messages.some((message) => message.role === "user");
+}
+
+function showMoodResponse(mood, pendingText = "") {
+  const resp = document.querySelector("#respText");
+  if (resp) resp.innerHTML = MOOD_RESPONSES[mood] || MOOD_RESPONSES.free;
+  pendingWelcomeMessage = pendingText || null;
+  showFlowScreen("responseScreen");
+}
+
+function showProfileScreen() {
+  showFlowScreen("profileScreen");
+  if (els.profileUserName) els.profileUserName.value = state.profile.name || "";
+  if (els.profileCatName) els.profileCatName.value = state.navi.name || "나비";
+}
+
+function finishProfileFlow() {
+  const userName = els.profileUserName?.value.trim();
+  const cat = els.profileCatName?.value.trim();
+  if (userName) state.profile.name = userName;
+  if (cat) state.navi.name = cat;
+  state.flags = {
+    ...(state.flags || {}),
+    setupDone: true,
+    loginSetupDone: true,
+    loginSetupUserId: authSession?.user?.id || null,
+  };
+  setupActive = false;
+  if (els.chatSetup) els.chatSetup.classList.add("is-hidden");
+  persist();
+  syncToCloud();
+  enterApp();
+}
+
+function continueAfterResponse() {
+  if (authSession && !hasCompletedLoginSetup()) {
+    showProfileScreen();
+  } else {
+    enterApp();
+  }
+  if (pendingWelcomeMessage) {
+    const message = pendingWelcomeMessage;
+    pendingWelcomeMessage = null;
+    window.setTimeout(() => receiveUserMessage(message), 350);
+  }
+}
+
+function openDrawer() {
+  els.drawer?.classList.add("open");
+  els.scrim?.classList.add("open");
+}
+
+function closeDrawer() {
+  els.drawer?.classList.remove("open");
+  els.scrim?.classList.remove("open");
+}
+
+function cleanAuthParamsFromUrl() {
+  const url = new URL(window.location.href);
+  let changed = false;
+  if (url.searchParams.has("code")) {
+    url.searchParams.delete("code");
+    changed = true;
+  }
+  if (url.hash && /access_token|refresh_token|type=recovery|code=/.test(url.hash)) {
+    url.hash = "";
+    changed = true;
+  }
+  if (changed) {
+    history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
+  }
+}
+
+async function finishAuthSession(session, { hydrate = true } = {}) {
+  if (!session?.user) return false;
+  authSession = session;
+  renderAuth(authSession);
+  cleanAuthParamsFromUrl();
+  if (hydrate && !authHydrated) {
+    authHydrated = true;
+    await hydrateFromCloud();
+  }
+  if (!hasCompletedLoginSetup()) {
+    showProfileScreen();
+  } else {
+    enterApp();
+  }
+  render();
+  return true;
+}
+
+async function handleAuthCallback(client) {
+  const code = new URLSearchParams(window.location.search).get("code");
+  if (!code) return null;
+
+  const { data, error } = await client.auth.exchangeCodeForSession(code);
+  if (error) {
+    console.error("Auth callback exchange failed:", error);
+    showWelcomeAuthError(`로그인 처리 중 문제가 생겼어요. ${error.message}`);
+    return null;
+  }
+  return data.session;
+}
 
 function hasReturningAuth() {
   const url = `${window.location.search}${window.location.hash}`;
@@ -189,11 +385,11 @@ function initWelcome() {
   const screen = document.querySelector("#welcomeScreen");
   if (!screen) return;
 
-  // 구글 로그인 복귀 또는 기존 세션이 있으면 웰컴을 건너뛰고 바로 대시보드로
-  if (hasReturningAuth()) {
+  dismissWelcome = dismissWelcomeScreen;
+
+  const returningAuth = hasReturningAuth();
+  if (returningAuth) {
     setWelcomeGuestAvailable(false);
-    screen.remove();
-    return;
   }
 
   const textEl = document.querySelector("#welcomeText");
@@ -203,36 +399,38 @@ function initWelcome() {
   const skip = document.querySelector("#welcomeSkip");
   const google = document.querySelector("#welcomeGoogle");
 
-  const name = (state.profile.name || "").trim();
-  const fullText = `${name ? name + "야, " : ""}오늘 나는 널 만나서 기분이 좋아.\n너의 기분은 어때?`;
-  let index = 0;
-  let typing = true;
+  if (!returningAuth) {
+    const name = (state.profile.name || "").trim();
+    const fullText = `${name ? name + "야, " : ""}오늘 나는 널 만나서 기분이 좋아.\n너의 기분은 어때?`;
+    let index = 0;
+    let typing = true;
 
-  function type() {
-    if (!typing || !textEl) return;
-    if (index < fullText.length) {
-      textEl.innerHTML += fullText[index] === "\n" ? "<br>" : escapeHtml(fullText[index]);
-      index += 1;
-      window.setTimeout(type, 90);
+    function type() {
+      if (!typing || !textEl) return;
+      if (index < fullText.length) {
+        textEl.innerHTML += fullText[index] === "\n" ? "<br>" : escapeHtml(fullText[index]);
+        index += 1;
+        window.setTimeout(type, 90);
+      }
     }
-  }
-  window.setTimeout(type, 700);
+    window.setTimeout(type, 700);
 
-  function dismiss() {
-    typing = false;
-    setWelcomeGuestAvailable(false);
-    screen.classList.add("is-dismissed");
-    window.setTimeout(() => screen.remove(), 700);
-  }
-  dismissWelcome = dismiss;
+    skip?.addEventListener("click", enterApp);
+    if (cursor && input) input.addEventListener("focus", () => (cursor.style.display = "none"));
 
-  form.addEventListener("submit", (event) => {
+    document.querySelectorAll(".mood[data-mood]").forEach((button) => {
+      button.addEventListener("click", () => showMoodResponse(button.dataset.mood));
+    });
+  }
+
+  form?.addEventListener("submit", (event) => {
     event.preventDefault();
-    const message = input.value.trim();
-    dismiss();
-    switchView("chat");
-    if (message) window.setTimeout(() => receiveUserMessage(message), 350);
+    const message = input?.value.trim() || "";
+    showMoodResponse("free", message);
   });
+
+  document.querySelector("#responseContinue")?.addEventListener("click", continueAfterResponse);
+  document.querySelector("#profileSubmit")?.addEventListener("click", finishProfileFlow);
 
   if (google) {
     if (!isSupabaseConfigured()) {
@@ -241,9 +439,6 @@ function initWelcome() {
     }
     google.addEventListener("click", () => signInWithGoogle());
   }
-
-  skip.addEventListener("click", dismiss);
-  if (cursor) input.addEventListener("focus", () => (cursor.style.display = "none"));
 }
 
 function setWelcomeGuestAvailable(isAvailable) {
@@ -257,14 +452,11 @@ function catName() {
   return (state.navi.name || "").trim() || "나비";
 }
 
-let setupActive = false;
-let setupStep = "userName";
-
 // 로그인 사용자에게만 채팅창 안에서 내 이름 → 고양이 이름 순서로 묻는다.
 function maybeStartSetup() {
   if (setupActive || !authSession?.user?.id) return;
   if (hasCompletedLoginSetup()) return;
-  startSetup();
+  showProfileScreen();
 }
 
 function hasCompletedLoginSetup() {
@@ -363,14 +555,25 @@ function stopSetup() {
 
 function bindEvents() {
   els.tabs.forEach((tab) => tab.addEventListener("click", () => switchView(tab.dataset.view)));
-  els.googleLogin.addEventListener("click", signInWithGoogle);
-  els.logoutButton.addEventListener("click", signOut);
-  els.chatSetupForm.addEventListener("submit", handleSetupSubmit);
-  els.chatSetupSkip.addEventListener("click", handleSetupSkip);
-  els.saveFootprint.addEventListener("click", saveFootprint);
-  els.skipFootprint.addEventListener("click", skipFootprint);
+  els.googleLogin?.addEventListener("click", signInWithGoogle);
+  els.logoutButton?.addEventListener("click", signOut);
+  els.chatSetupForm?.addEventListener("submit", handleSetupSubmit);
+  els.chatSetupSkip?.addEventListener("click", handleSetupSkip);
+  els.saveFootprint?.addEventListener("click", saveFootprint);
+  els.skipFootprint?.addEventListener("click", skipFootprint);
 
-  els.chatForm.addEventListener("submit", (event) => {
+  document.querySelector("#openDrawer")?.addEventListener("click", openDrawer);
+  els.scrim?.addEventListener("click", closeDrawer);
+  document.querySelector("#newChatFab")?.addEventListener("click", () => {
+    closeDrawer();
+    state.messages = [...initialState.messages];
+    state.footprintDraft = null;
+    persist();
+    switchView("chat");
+    render();
+  });
+
+  els.chatForm?.addEventListener("submit", (event) => {
     event.preventDefault();
     const message = els.messageInput.value.trim();
     if (!message) return;
@@ -378,7 +581,7 @@ function bindEvents() {
     els.messageInput.value = "";
   });
 
-  els.quickActions.addEventListener("click", (event) => {
+  els.quickActions?.addEventListener("click", (event) => {
     const button = event.target.closest("button[data-prompt]");
     if (button) {
       moveNaviNear(button, "여기 앉아서 들어볼게.");
@@ -386,15 +589,7 @@ function bindEvents() {
     }
   });
 
-  els.resetDay.addEventListener("click", () => {
-    state.day = { ...initialState.day };
-    state.messages = [...initialState.messages];
-    state.footprintDraft = null;
-    persist();
-    render();
-  });
-
-  els.profileForm.addEventListener("submit", (event) => {
+  els.profileForm?.addEventListener("submit", (event) => {
     event.preventDefault();
     const formData = new FormData(els.profileForm);
     state.profile = {
@@ -409,58 +604,63 @@ function bindEvents() {
     persist();
     render();
   });
-
-  els.completeRoutine.addEventListener("click", () => {
-    const checked = [...document.querySelectorAll(".routine-list input:checked")].map((input) => input.value);
-    state.day.routines = checked;
-    addBond(checked.length * 4);
-    if (checked.length > 0) _interactionScore += 2; // 루틴 완료 시 상호작용 점수 +2
-    addCatMessage(makeRoutineReply(checked));
-    state.footprintDraft = buildFootprintDraft();
-    switchView("chat");
-    persist();
-    render();
-  });
 }
 
 async function initializeAuth() {
-  if (!isSupabaseConfigured() || !supabase) {
+  const client = await getSupabaseClient();
+  if (!isSupabaseConfigured() || !client) {
     renderAuth(null, "Supabase anon key를 넣으면 Google 로그인을 사용할 수 있어요.");
     return;
   }
 
-  const { data } = await supabase.auth.getSession();
-  authSession = data.session;
-  renderAuth(authSession);
-  if (authSession) {
-    dismissWelcome();
-    await hydrateFromCloud();
-    maybeStartSetup();
+  // OAuth 복귀 URL(?code=)을 명시적으로 세션으로 교환
+  let session = await handleAuthCallback(client);
+  if (!session) {
+    const { data } = await client.auth.getSession();
+    session = data.session;
   }
 
-  supabase.auth.onAuthStateChange(async (_event, session) => {
-    authSession = session;
-    renderAuth(authSession);
-    if (authSession) {
-      dismissWelcome();
-      await hydrateFromCloud();
-      maybeStartSetup();
-    } else {
+  if (session) {
+    await finishAuthSession(session);
+  } else {
+    renderAuth(null);
+  }
+
+  client.auth.onAuthStateChange(async (event, session) => {
+    if (session && (event === "SIGNED_IN" || event === "INITIAL_SESSION")) {
+      await finishAuthSession(session, { hydrate: !authHydrated });
+      return;
+    }
+    if (!session) {
+      authSession = null;
+      renderAuth(null);
       stopSetup();
     }
   });
 }
 
 async function signInWithGoogle() {
-  if (!isSupabaseConfigured() || !supabase) return;
+  const client = await getSupabaseClient();
+  if (!isSupabaseConfigured() || !client) {
+    showWelcomeAuthError("로그인 준비가 아직 안 됐어요. 잠시 후 다시 눌러주세요.");
+    return;
+  }
+
   setWelcomeGuestAvailable(false);
-  const { error } = await supabase.auth.signInWithOAuth({
+  const redirectTo = getAuthRedirectUrl();
+  const { data, error } = await client.auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo: window.location.href.split("#")[0] },
+    options: { redirectTo },
   });
+
   if (error) {
-    addCatMessage(`로그인을 시작하지 못했어. ${error.message}`);
-    render();
+    showWelcomeAuthError(`로그인을 시작하지 못했어요. ${error.message}`);
+    return;
+  }
+
+  // 일부 환경에서는 자동 리다이렉트가 막히므로 URL이 오면 직접 이동
+  if (data?.url) {
+    window.location.assign(data.url);
   }
 }
 
@@ -468,8 +668,10 @@ async function signOut() {
   if (!supabase) return;
   await supabase.auth.signOut();
   authSession = null;
+  authHydrated = false;
   stopSetup();
   renderAuth(null);
+  showFlowScreen("welcomeScreen");
 }
 
 async function receiveUserMessage(message) {
@@ -757,49 +959,53 @@ function renderSetup() {
 function renderAuth(session, fallbackMessage) {
   const configured = isSupabaseConfigured();
   const email = session?.user?.email;
-  els.googleLogin.disabled = !configured;
-  els.googleLogin.classList.toggle("is-hidden", Boolean(email));
-  els.logoutButton.classList.toggle("is-hidden", !email);
+  if (els.googleLogin) {
+    els.googleLogin.disabled = !configured;
+    els.googleLogin.classList.toggle("is-hidden", Boolean(email));
+  }
+  els.logoutButton?.classList.toggle("is-hidden", !email);
   setWelcomeGuestAvailable(!email);
-  els.storageMode.textContent = email ? "클라우드 저장" : "로컬 저장";
-  els.authTitle.textContent = email ? "로그인됨" : configured ? "Google 로그인" : "로컬 모드";
-  els.authDescription.textContent = email
-    ? `${email} 계정에 발자국 요약만 동기화 중`
-    : configured
-      ? "로그인하면 오늘의 발자국 요약만 Supabase에 저장돼요."
-      : fallbackMessage || "Supabase 설정 전에는 이 기기에만 저장돼요.";
+  if (els.storageMode) els.storageMode.textContent = email ? "클라우드 저장" : "로컬 저장";
+  if (els.authTitle) els.authTitle.textContent = email ? "로그인됨" : configured ? "Google 로그인" : "로컬 모드";
+  if (els.authDescription) {
+    els.authDescription.textContent = email
+      ? `${email} 계정에 발자국 요약만 동기화 중`
+      : configured
+        ? "로그인하면 오늘의 발자국 요약만 Supabase에 저장돼요."
+        : fallbackMessage || "Supabase 설정 전에는 이 기기에만 저장돼요.";
+  }
 }
 
 function renderChat() {
+  if (!els.chatLog) return;
+  const avatar = `<img class="av" src="./assets/navi-face.png" alt="" />`;
   els.chatLog.innerHTML = state.messages
-    .map((message) =>
-      `<li class="message ${message.role}${message.loading ? " is-loading" : ""}">` +
-      `<strong>${message.role === "cat" ? catName() : "나"}</strong>` +
-      `${escapeHtml(message.text)}</li>`
-    )
+    .map((message) => {
+      if (message.role === "cat") {
+        return (
+          `<div class="row-nabi${message.loading ? " is-loading" : ""}">` +
+          `${avatar}<div class="msg nabi">${escapeHtml(message.text)}</div></div>`
+        );
+      }
+      return `<div class="row-me"><div class="msg me">${escapeHtml(message.text)}</div></div>`;
+    })
     .join("");
   els.chatLog.scrollTop = els.chatLog.scrollHeight;
+  setChatEmpty(!hasUserMessages());
 }
 
 function renderMetrics() {
   const growth = getNaviGrowth();
-  els.sleepMetric.textContent = state.day.sleepHours === null ? "미입력" : `${state.day.sleepHours}시간`;
-  els.activityMetric.textContent = state.day.activityMinutes === null ? "미입력" : `${state.day.activityMinutes}분`;
-  els.moodMetric.textContent = state.day.mood || "미입력";
-  els.energyMetric.textContent = state.day.energy;
-  els.bondLabel.textContent = `유대감 ${state.day.bond}%`;
+  if (els.sleepMetric) els.sleepMetric.textContent = state.day.sleepHours === null ? "미입력" : `${state.day.sleepHours}시간`;
+  if (els.activityMetric) els.activityMetric.textContent = state.day.activityMinutes === null ? "미입력" : `${state.day.activityMinutes}분`;
+  if (els.moodMetric) els.moodMetric.textContent = state.day.mood || "미입력";
+  if (els.energyMetric) els.energyMetric.textContent = state.day.energy;
+  if (els.bondLabel) els.bondLabel.textContent = `유대감 ${state.day.bond}%`;
   if (els.naviLevelLabel) els.naviLevelLabel.textContent = `Lv.${growth.level} ${growth.name}`;
-  if (els.naviAgeLabel) els.naviAgeLabel.textContent = getNaviAgeLabel();
-  const moodCopy = {
-    낮음: "오늘은 나비가 옆에서 속도를 낮춰줄게요.",
-    주의: "긴장 신호가 보여요. 잠깐 숨을 고르자요.",
-    좋음: "오늘 리듬이 꽤 좋아요. 나비도 편안해요.",
-    보통: "오늘은 천천히 마음을 확인해볼게요.",
-  };
-  els.catMood.textContent = `${growth.copy} ${moodCopy[state.day.energy] || moodCopy["보통"]}`;
 }
 
 function renderInsights() {
+  if (!els.insightList) return;
   const insights = [];
   insights.push(state.day.sleepHours === null ? "수면 시간을 말해주면 오늘 발자국의 수면 요약을 만들 수 있어요." : `수면 요약은 ${labels.sleep[mapSleep(state.day.sleepHours)]}입니다.`);
   insights.push(state.day.activityMinutes === null ? "활동량이 비어 있습니다. 10분 걷기처럼 낮은 마찰의 루틴부터 시작해요." : `활동 요약은 ${labels.activity[mapActivity(state.day.activityMinutes)]}입니다.`);
@@ -808,6 +1014,7 @@ function renderInsights() {
 }
 
 function renderProfile() {
+  if (!els.profileForm) return;
   els.profileForm.elements.name.value = state.profile.name;
   els.profileForm.elements.goal.value = state.profile.goal;
   els.profileForm.elements.tone.value = state.profile.tone;
@@ -817,6 +1024,7 @@ function renderProfile() {
 }
 
 function renderFootprintDraft() {
+  if (!els.footprintDraft) return;
   const draft = state.footprintDraft;
   els.footprintDraft.classList.toggle("is-hidden", !draft);
   if (!draft) return;
@@ -829,6 +1037,7 @@ function renderFootprintDraft() {
 }
 
 function renderFootprints() {
+  if (!els.footprintList) return;
   const items = state.footprints.slice(0, 7);
   els.footprintList.innerHTML = items.length
     ? items
@@ -853,9 +1062,11 @@ function renderFootprints() {
 
 function switchView(viewName) {
   els.tabs.forEach((tab) => tab.classList.toggle("is-active", tab.dataset.view === viewName));
-  Object.entries(els.views).forEach(([name, view]) => view.classList.toggle("is-active", name === viewName));
-  const activeTab = [...els.tabs].find((tab) => tab.dataset.view === viewName);
-  if (activeTab) moveNaviNear(activeTab, viewName === "footprints" ? "기억 보러 갈까?" : "여기 있을게.");
+  Object.entries(els.views).forEach(([name, view]) => {
+    if (view) view.classList.toggle("is-active", name === viewName);
+  });
+  document.querySelector(".dock")?.classList.toggle("is-hidden", viewName !== "chat");
+  closeDrawer();
 }
 
 function initNaviWalker() {
