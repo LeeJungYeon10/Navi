@@ -7,9 +7,10 @@
     "doc": "docs"
   },
   "scripts": {
+    "build": "node scripts/generate-config.mjs",
     "check": "node --check app.js && node --check sync-notion.js",
     "sync:notion": "node sync-notion.js",
-    "dev": "python -m http.server 5180"
+    "dev": "npm run build && python -m http.server 5180"
   },
   "repository": {
     "type": "git",

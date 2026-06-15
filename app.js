@@ -432,13 +432,7 @@ function initWelcome() {
   document.querySelector("#responseContinue")?.addEventListener("click", continueAfterResponse);
   document.querySelector("#profileSubmit")?.addEventListener("click", finishProfileFlow);
 
-  if (google) {
-    if (!isSupabaseConfigured()) {
-      google.disabled = true;
-      google.title = "Supabase 설정 후 사용할 수 있어요.";
-    }
-    google.addEventListener("click", () => signInWithGoogle());
-  }
+  google?.addEventListener("click", () => signInWithGoogle(google));
 }
 
 function setWelcomeGuestAvailable(isAvailable) {
@@ -555,7 +549,7 @@ function stopSetup() {
 
 function bindEvents() {
   els.tabs.forEach((tab) => tab.addEventListener("click", () => switchView(tab.dataset.view)));
-  els.googleLogin?.addEventListener("click", signInWithGoogle);
+  els.googleLogin?.addEventListener("click", () => signInWithGoogle(els.googleLogin));
   els.logoutButton?.addEventListener("click", signOut);
   els.chatSetupForm?.addEventListener("submit", handleSetupSubmit);
   els.chatSetupSkip?.addEventListener("click", handleSetupSkip);
@@ -639,9 +633,28 @@ async function initializeAuth() {
   });
 }
 
-async function signInWithGoogle() {
+async function signInWithGoogle(triggerButton = null) {
+  const buttons = [triggerButton, document.querySelector("#welcomeGoogle"), els.googleLogin].filter(Boolean);
+  const restoreButtons = () => {
+    buttons.forEach((button) => {
+      button.disabled = false;
+      button.removeAttribute("aria-busy");
+    });
+  };
+
+  if (!isSupabaseConfigured()) {
+    showWelcomeAuthError("Supabase 설정이 없어요. 배포 환경에서 supabase-config.js 생성 여부를 확인해 주세요.");
+    return;
+  }
+
+  buttons.forEach((button) => {
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+  });
+
   const client = await getSupabaseClient();
-  if (!isSupabaseConfigured() || !client) {
+  if (!client) {
+    restoreButtons();
     showWelcomeAuthError("로그인 준비가 아직 안 됐어요. 잠시 후 다시 눌러주세요.");
     return;
   }
@@ -654,14 +667,18 @@ async function signInWithGoogle() {
   });
 
   if (error) {
+    restoreButtons();
     showWelcomeAuthError(`로그인을 시작하지 못했어요. ${error.message}`);
     return;
   }
 
-  // 일부 환경에서는 자동 리다이렉트가 막히므로 URL이 오면 직접 이동
   if (data?.url) {
     window.location.assign(data.url);
+    return;
   }
+
+  restoreButtons();
+  showWelcomeAuthError("Google 로그인 페이지로 이동하지 못했어요. 다시 시도해 주세요.");
 }
 
 async function signOut() {
@@ -960,7 +977,6 @@ function renderAuth(session, fallbackMessage) {
   const configured = isSupabaseConfigured();
   const email = session?.user?.email;
   if (els.googleLogin) {
-    els.googleLogin.disabled = !configured;
     els.googleLogin.classList.toggle("is-hidden", Boolean(email));
   }
   els.logoutButton?.classList.toggle("is-hidden", !email);
