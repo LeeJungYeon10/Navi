@@ -436,16 +436,12 @@ async function finishProfileFlow() {
   const cat = els.profileCatName?.value.trim();
   if (userName) state.profile.name = userName;
   if (cat) state.navi.name = cat;
-  state.flags = {
-    ...(state.flags || {}),
-    setupDone: true,
-    loginSetupDone: true,
-    loginSetupUserId: authSession?.user?.id || null,
-  };
+  syncActiveCatFromNavi(state);
+  markLoginSetupComplete(authSession?.user?.id);
   setupActive = false;
   if (els.chatSetup) els.chatSetup.classList.add("is-hidden");
   persist();
-  await syncAuthDisplayName();
+  await syncAuthProfileMetadata();
   await syncToCloud();
   enterApp();
 }
@@ -682,10 +678,28 @@ function maybeStartSetup() {
   showProfileScreen();
 }
 
+function markLoginSetupComplete(userId = authSession?.user?.id) {
+  if (!userId) return;
+  state.flags = {
+    ...(state.flags || {}),
+    setupDone: true,
+    loginSetupDone: true,
+    loginSetupUserId: userId,
+    appEntered: true,
+  };
+}
+
 function hasCompletedLoginSetup() {
   const userId = authSession?.user?.id;
   if (!userId) return false;
-  return Boolean(state.flags?.loginSetupDone && state.flags?.loginSetupUserId === userId);
+  if (state.flags?.loginSetupDone && state.flags?.loginSetupUserId === userId) return true;
+
+  const meta = authSession.user.user_metadata || {};
+  if (meta.onboarding_complete === true) return true;
+
+  const nickname = (state.profile.name || meta.display_name || meta.name || meta.full_name || "").trim();
+  const cat = (state.navi.name || meta.cat_name || "").trim();
+  return Boolean(nickname || cat);
 }
 
 function startSetup() {
@@ -757,15 +771,10 @@ function handleSetupSkip() {
 function finishSetup() {
   setupActive = false;
   setupStep = "userName";
-  state.flags = {
-    ...(state.flags || {}),
-    setupDone: true,
-    loginSetupDone: true,
-    loginSetupUserId: authSession?.user?.id || null,
-  };
+  markLoginSetupComplete(authSession?.user?.id);
   if (els.chatSetup) els.chatSetup.classList.add("is-hidden");
   persist();
-  void syncAuthDisplayName();
+  void syncAuthProfileMetadata();
   syncToCloud();
   switchView("chat");
   render();
@@ -830,7 +839,7 @@ function bindEvents() {
     };
     const name = state.profile.name || "너";
     addCatMessage(`${name}에게 맞춰 기억해둘게. 오늘 목표는 ${state.profile.goal}, 대화 톤은 ${state.profile.tone}.`);
-    await syncAuthDisplayName();
+    await syncAuthProfileMetadata();
     switchView("chat");
     persist();
     render();
@@ -1422,8 +1431,10 @@ function saveNaviName(event) {
   event.preventDefault();
   const value = els.naviNameInput?.value.trim();
   state.navi.name = value || null;
+  syncActiveCatFromNavi(state);
   closeNaviNameEdit();
   persist();
+  void syncAuthProfileMetadata();
   render();
   if (currentView === "navi" && els.appSub) {
     els.appSub.textContent = `${catName()} 프로필`;
@@ -1757,37 +1768,72 @@ function queueCloudSync() {
 async function hydrateFromCloud() {
   if (!authSession || !supabase) return;
   const userId = authSession.user.id;
+  const meta = authSession.user.user_metadata || {};
   const [{ data: profile }, { data: footprints }] = await Promise.all([
     supabase.from("profiles").select("display_name, goal, tone, focus").eq("user_id", userId).maybeSingle(),
     supabase.from("daily_footprints").select("*").eq("user_id", userId).order("footprint_date", { ascending: false }).limit(14),
   ]);
+
+  const nickname = (profile?.display_name || meta.display_name || meta.name || meta.full_name || "").trim();
+  if (nickname) state.profile.name = nickname;
+
   if (profile) {
-    state.profile = { name: profile.display_name || "", goal: profile.goal || initialState.profile.goal, tone: profile.tone || initialState.profile.tone, focus: profile.focus || [] };
-    await syncAuthDisplayName();
+    state.profile = {
+      name: nickname || state.profile.name || "",
+      goal: profile.goal || initialState.profile.goal,
+      tone: profile.tone || initialState.profile.tone,
+      focus: profile.focus || [],
+    };
   }
+
+  const catName = (meta.cat_name || "").trim();
+  if (catName) state.navi.name = catName;
+  if (meta.navi_birthday && !state.navi.birthday) state.navi.birthday = meta.navi_birthday;
+  syncActiveCatFromNavi(state);
+
   if (footprints?.length) state.footprints = footprints.map(normalizeFootprintRecord);
+
+  if (hasCompletedLoginSetup()) markLoginSetupComplete(userId);
+
+  await syncAuthProfileMetadata();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   render();
 }
 
-async function syncAuthDisplayName() {
-  const displayName = (state.profile.name || "").trim();
-  if (!displayName || !authSession?.user || !supabase) return;
+async function syncAuthProfileMetadata() {
+  if (!authSession?.user || !supabase) return;
 
   const metadata = authSession.user.user_metadata || {};
-  if (metadata.display_name === displayName && metadata.name === displayName && metadata.full_name === displayName) return;
+  const displayName = (state.profile.name || "").trim();
+  const catName = (state.navi.name || "").trim();
+  const birthday = state.navi.birthday || "";
+  const onboardingComplete = Boolean(
+    state.flags?.loginSetupDone && state.flags?.loginSetupUserId === authSession.user.id,
+  );
 
-  const { data, error } = await supabase.auth.updateUser({
-    data: {
-      ...metadata,
-      display_name: displayName,
-      name: displayName,
-      full_name: displayName,
-    },
-  });
+  const next = { ...metadata };
+  if (displayName) {
+    next.display_name = displayName;
+    next.name = displayName;
+    next.full_name = displayName;
+  }
+  if (catName) next.cat_name = catName;
+  if (birthday) next.navi_birthday = birthday;
+  if (onboardingComplete) next.onboarding_complete = true;
+
+  const unchanged =
+    metadata.display_name === next.display_name &&
+    metadata.name === next.name &&
+    metadata.full_name === next.full_name &&
+    metadata.cat_name === next.cat_name &&
+    metadata.navi_birthday === next.navi_birthday &&
+    metadata.onboarding_complete === next.onboarding_complete;
+  if (unchanged) return;
+
+  const { data, error } = await supabase.auth.updateUser({ data: next });
 
   if (error) {
-    console.error("Auth display name sync failed:", error);
+    console.error("Auth profile metadata sync failed:", error);
     return;
   }
 
@@ -1799,6 +1845,7 @@ async function syncAuthDisplayName() {
 async function syncToCloud() {
   if (!authSession || !supabase) return;
   const userId = authSession.user.id;
+  await syncAuthProfileMetadata();
   await supabase.from("profiles").upsert(
     { user_id: userId, display_name: state.profile.name || null, goal: state.profile.goal, tone: state.profile.tone, focus: state.profile.focus, updated_at: new Date().toISOString() },
     { onConflict: "user_id" },
