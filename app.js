@@ -3,6 +3,7 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./supabase-config.js";
 
 const STORAGE_KEY = "hello-naviya-state-v4";
 const LEGACY_STORAGE_KEYS = ["hello-nabiya-state-v3"];
+const FOOTPRINT_DRAFT_ENABLED = false; // 오늘의 발자국 팝업 — 추후 개발 후 true로 전환
 
 // Supabase CDN 로드가 느리거나 실패해도 온보딩·로그인 버튼은 바로 동작하게 비동기 초기화
 let supabase = null;
@@ -160,6 +161,7 @@ const els = {
   },
   authTitle: document.querySelector("#authTitle"),
   authEmail: document.querySelector("#authEmail"),
+  authDisplayName: document.querySelector("#authDisplayName"),
   accountCard: document.querySelector("#accountCard"),
   meLoginSection: document.querySelector("#meLoginSection"),
   accountBottomActions: document.querySelector("#accountBottomActions"),
@@ -441,8 +443,7 @@ async function finishProfileFlow() {
   setupActive = false;
   if (els.chatSetup) els.chatSetup.classList.add("is-hidden");
   persist();
-  await syncAuthProfileMetadata();
-  await syncToCloud();
+  await syncProfileToCloud();
   enterApp();
 }
 
@@ -758,7 +759,11 @@ function handleSetupSubmit(event) {
   if (!setupActive) return;
   const value = els.chatSetupInput.value.trim();
   if (setupStep === "userName") {
-    if (value) state.profile.name = value;
+    if (value) {
+      state.profile.name = value;
+      persist();
+      void syncProfileToCloud();
+    }
     setupStep = "catName";
     addCatMessage(value ? `${value}라고 부르면 되는구나. 이번엔 내 이름도 지어줄래?` : "괜찮아. 이름은 나중에 알려줘도 돼. 이번엔 내 이름도 지어줄래?");
     persist();
@@ -769,7 +774,7 @@ function handleSetupSubmit(event) {
 
   if (value) state.navi.name = value;
   addCatMessage(value ? `${value}라고 불러주면 되는구나. 좋아, 이제 같이 이야기해보자.` : "좋아, 지금은 나비라고 불러도 괜찮아. 이제 같이 이야기해보자.");
-  finishSetup();
+  void finishSetup();
 }
 
 function handleSetupSkip() {
@@ -783,17 +788,16 @@ function handleSetupSkip() {
     return;
   }
   addCatMessage("괜찮아. 지금은 나비라고 불러도 좋아. 이제 천천히 이야기해보자.");
-  finishSetup();
+  void finishSetup();
 }
 
-function finishSetup() {
+async function finishSetup() {
   setupActive = false;
   setupStep = "userName";
   markLoginSetupComplete(authSession?.user?.id);
   if (els.chatSetup) els.chatSetup.classList.add("is-hidden");
   persist();
-  void syncAuthProfileMetadata();
-  syncToCloud();
+  await syncProfileToCloud();
   switchView("chat");
   render();
 }
@@ -857,7 +861,7 @@ function bindEvents() {
     };
     const name = state.profile.name || "너";
     addCatMessage(`${name}에게 맞춰 기억해둘게. 오늘 목표는 ${state.profile.goal}, 대화 톤은 ${state.profile.tone}.`);
-    await syncAuthProfileMetadata();
+    await syncProfileToCloud();
     switchView("chat");
     persist();
     render();
@@ -1083,7 +1087,11 @@ async function receiveUserMessage(message) {
   if (idx !== -1) state.messages[idx] = { role: "cat", text: localizedReply };
   else state.messages.push({ role: "cat", text: localizedReply });
 
-  state.footprintDraft = buildFootprintDraft(context);
+  if (FOOTPRINT_DRAFT_ENABLED) {
+    state.footprintDraft = buildFootprintDraft(context);
+  } else {
+    state.footprintDraft = null;
+  }
   syncActiveChatToHistory();
   persist();
   render();
@@ -1373,6 +1381,10 @@ function renderAuth(session) {
 
   setWelcomeGuestAvailable(!loggedIn);
   if (els.storageMode) els.storageMode.textContent = loggedIn ? "클라우드 저장" : "로컬 저장";
+  if (els.authDisplayName) {
+    const nickname = (state.profile.name || "").trim();
+    els.authDisplayName.textContent = nickname || "아직 설정 안 함";
+  }
   if (els.authEmail) els.authEmail.textContent = email;
   if (els.authTitle) {
     els.authTitle.textContent = configured ? "Google 로그인" : "로컬 모드";
@@ -1453,7 +1465,7 @@ function saveNaviName(event) {
   syncActiveCatFromNavi(state);
   closeNaviNameEdit();
   persist();
-  void syncAuthProfileMetadata();
+  void syncProfileToCloud();
   render();
   if (currentView === "navi" && els.appSub) {
     els.appSub.textContent = `${catName()} 프로필`;
@@ -1462,7 +1474,7 @@ function saveNaviName(event) {
 
 function renderFootprintDraft() {
   if (!els.footprintDraft) return;
-  const draft = state.footprintDraft;
+  const draft = FOOTPRINT_DRAFT_ENABLED ? state.footprintDraft : null;
   els.footprintDraft.classList.toggle("is-hidden", !draft);
   if (!draft) return;
   els.draftMood.textContent = labels.mood[draft.mood];
@@ -1785,13 +1797,17 @@ function queueCloudSync() {
 }
 
 async function hydrateFromCloud() {
-  if (!authSession || !supabase) return;
+  const client = await getSupabaseClient();
+  if (!authSession || !client) return;
   const userId = authSession.user.id;
   const meta = authSession.user.user_metadata || {};
-  const [{ data: profile }, { data: footprints }] = await Promise.all([
-    supabase.from("profiles").select("display_name, goal, tone, focus").eq("user_id", userId).maybeSingle(),
-    supabase.from("daily_footprints").select("*").eq("user_id", userId).order("footprint_date", { ascending: false }).limit(14),
+  const [{ data: profile, error: profileError }, { data: footprints, error: footprintsError }] = await Promise.all([
+    client.from("profiles").select("display_name, goal, tone, focus").eq("user_id", userId).maybeSingle(),
+    client.from("daily_footprints").select("*").eq("user_id", userId).order("footprint_date", { ascending: false }).limit(14),
   ]);
+
+  if (profileError) console.error("Profile hydrate failed:", profileError);
+  if (footprintsError) console.error("Footprints hydrate failed:", footprintsError);
 
   const nickname = (profile?.display_name || meta.display_name || meta.name || meta.full_name || "").trim();
   if (nickname) state.profile.name = nickname;
@@ -1814,13 +1830,15 @@ async function hydrateFromCloud() {
 
   if (hasCompletedLoginSetup()) markLoginSetupComplete(userId);
 
-  await syncAuthProfileMetadata();
+  await syncProfileToCloud(client);
+
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   render();
 }
 
-async function syncAuthProfileMetadata() {
-  if (!authSession?.user || !supabase) return;
+async function syncAuthProfileMetadata(clientIn) {
+  const client = clientIn || (await getSupabaseClient());
+  if (!authSession?.user || !client) return false;
 
   const metadata = authSession.user.user_metadata || {};
   const displayName = (state.profile.name || "").trim();
@@ -1847,29 +1865,58 @@ async function syncAuthProfileMetadata() {
     metadata.cat_name === next.cat_name &&
     metadata.navi_birthday === next.navi_birthday &&
     metadata.onboarding_complete === next.onboarding_complete;
-  if (unchanged) return;
+  if (unchanged) return true;
 
-  const { data, error } = await supabase.auth.updateUser({ data: next });
+  const { data, error } = await client.auth.updateUser({ data: next });
 
   if (error) {
     console.error("Auth profile metadata sync failed:", error);
-    return;
+    return false;
   }
 
   if (data.user) {
     authSession = { ...authSession, user: data.user };
     renderAuth(authSession);
   }
+  return true;
 }
-async function syncToCloud() {
-  if (!authSession || !supabase) return;
+
+async function syncProfileToCloud(clientIn) {
+  const client = clientIn || (await getSupabaseClient());
+  if (!authSession?.user || !client) return false;
+
+  await syncAuthProfileMetadata(client);
+
   const userId = authSession.user.id;
-  await syncAuthProfileMetadata();
-  await supabase.from("profiles").upsert(
-    { user_id: userId, display_name: state.profile.name || null, goal: state.profile.goal, tone: state.profile.tone, focus: state.profile.focus, updated_at: new Date().toISOString() },
+  const displayName = (state.profile.name || "").trim();
+  const { error } = await client.from("profiles").upsert(
+    {
+      user_id: userId,
+      display_name: displayName || null,
+      goal: state.profile.goal,
+      tone: state.profile.tone,
+      focus: state.profile.focus,
+      updated_at: new Date().toISOString(),
+    },
     { onConflict: "user_id" },
   );
+
+  if (error) {
+    console.error("Profile sync failed:", error);
+    return false;
+  }
+  return true;
+}
+
+async function syncToCloud() {
+  const client = await getSupabaseClient();
+  if (!authSession?.user || !client) return;
+
+  const userId = authSession.user.id;
+  const synced = await syncProfileToCloud(client);
+  if (!synced) return;
   if (!state.footprints.length) return;
+
   const payload = state.footprints.map((item) => ({
     user_id: userId,
     footprint_date: item.footprint_date,
@@ -1883,7 +1930,8 @@ async function syncToCloud() {
     bond_delta: item.bond_delta,
     updated_at: new Date().toISOString(),
   }));
-  await supabase.from("daily_footprints").upsert(payload, { onConflict: "user_id,footprint_date" });
+  const { error } = await client.from("daily_footprints").upsert(payload, { onConflict: "user_id,footprint_date" });
+  if (error) console.error("Footprints sync failed:", error);
 }
 
 function loadState() {

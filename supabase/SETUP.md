@@ -13,9 +13,14 @@ https://nackdrgjlmglvcyqmsxg.supabase.co
 Supabase Dashboard → **SQL Editor** → `supabase/schema.sql` 내용 전체 실행.
 
 생성되는 테이블:
-- `profiles` — 사용자 목표, 대화 톤, 관심 항목
+- `profiles` — 사용자 닉네임(`display_name`), 목표, 대화 톤, 관심 항목
 - `daily_footprints` — 날짜별 감정·수면·활동·나비의 한마디·루틴
 - `user_sessions` — 화면 오픈 시간, 상호작용 점수, 유대감 보너스 요약
+
+`schema.sql` 마지막의 `handle_new_user` 트리거는 **신규 가입 시 `profiles` 행을 자동 생성**합니다.  
+이미 운영 중인 프로젝트는 `supabase/migrations/20250614120000_profile_on_signup.sql` 도 SQL Editor에서 한 번 실행하세요.
+
+닉네임은 로그인·온보딩·마이페이지 저장 시 `profiles.display_name` 과 Auth `user_metadata.display_name` 에 동기화됩니다.
 
 모든 테이블에 RLS가 켜져 있고 `auth.uid() = user_id` 조건으로 본인 데이터만 읽고 씁니다.
 대화 원문은 저장하지 않고, 사용자가 확인한 `오늘의 발자국` 요약과 세션 보너스 계산용 요약만 저장합니다.
