@@ -606,13 +606,23 @@ function initWelcome() {
     }
     window.setTimeout(type, 700);
 
-    skip?.addEventListener("click", enterApp);
-    if (cursor && input) input.addEventListener("focus", () => (cursor.style.display = "none"));
-
-    document.querySelectorAll(".mood[data-mood]").forEach((button) => {
-      button.addEventListener("click", () => showMoodResponse(button.dataset.mood));
-    });
   }
+
+  if (skip && !skip.dataset.bound) {
+    skip.dataset.bound = "true";
+    skip.addEventListener("click", enterApp);
+  }
+
+  if (cursor && input && !input.dataset.welcomeFocusBound) {
+    input.dataset.welcomeFocusBound = "true";
+    input.addEventListener("focus", () => (cursor.style.display = "none"));
+  }
+
+  document.querySelectorAll(".mood[data-mood]").forEach((button) => {
+    if (button.dataset.bound) return;
+    button.dataset.bound = "true";
+    button.addEventListener("click", () => showMoodResponse(button.dataset.mood));
+  });
 
   form?.addEventListener("submit", (event) => {
     event.preventDefault();
