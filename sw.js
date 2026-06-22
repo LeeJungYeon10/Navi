@@ -1,7 +1,11 @@
-const CACHE_NAME = "hello-naviya-pwa-v53";
-const NAVI_FRAMES = Array.from(
+const CACHE_NAME = "hello-naviya-pwa-v54";
+const NAVI_TAIL_IDLE_FRAMES = Array.from(
   { length: 22 },
-  (_, index) => `./assets/navi-frames/navi-${String(index + 1).padStart(2, "0")}.png`,
+  (_, index) => `./assets/navi_tail_idle/navi-${String(index + 1).padStart(2, "0")}.png`,
+);
+const NAVI_REST_IDLE_FRAMES = Array.from(
+  { length: 7 },
+  (_, index) => `./assets/navi_rest_idle/navi_rest_idle_${index + 1}.png`,
 );
 const ASSETS = [
   "./",
@@ -13,9 +17,9 @@ const ASSETS = [
   "./manifest.webmanifest",
   "./assets/navi-face.png",
   "./assets/navi.png",
-  "./assets/navi-lying-face-front.png",
-  "./assets/navi-lying-face-aspect.png",
-  ...NAVI_FRAMES,
+  "./assets/navi_rest.png",
+  ...NAVI_TAIL_IDLE_FRAMES,
+  ...NAVI_REST_IDLE_FRAMES,
 ];
 
 self.addEventListener("install", (event) => {

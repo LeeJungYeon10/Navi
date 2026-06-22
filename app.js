@@ -219,23 +219,34 @@ if (shouldRestoreOnLoad()) {
 }
 
 let naviPosition = { x: 170, y: 230 };
-let naviWalkTimer = null;
+let naviRestCycleTimer = null;
 let naviBubbleTimer = null;
 let naviStopTimer = null;
 let naviFrameTimer = null;
 let naviRestIdleTimer = null;
 let naviFrameIndex = 0;
-const NAVI_FRAME_MS = 80;
-const NAVI_WALK_FRAMES = Array.from(
+const NAVI_SIT_IMAGE = "./assets/navi.png";
+const NAVI_TAIL_FRAME_MS = 150;
+const NAVI_TAIL_IDLE_DELAY_MS = 7000;
+const NAVI_TAIL_IDLE_FRAMES = Array.from(
   { length: 22 },
-  (_, index) => `./assets/navi-frames/navi-${String(index + 1).padStart(2, "0")}.png`,
+  (_, index) => `./assets/navi_tail_idle/navi-${String(index + 1).padStart(2, "0")}.png`,
 );
 const NAVI_REST_IMAGE = "./assets/navi_rest.png";
 const NAVI_REST_IDLE_FRAMES = Array.from(
   { length: 7 },
   (_, index) => `./assets/navi_rest_idle/navi_rest_idle_${index + 1}.png`,
 );
-const NAVI_REST_FRAME_MS = 90;
+const NAVI_REST_FRAME_MS = 130;
+const NAVI_REST_AFTER_MS = 24000;
+const NAVI_REST_HOLD_MS = 7000;
+const NAVI_PRELOADED_IMAGES = [NAVI_SIT_IMAGE, NAVI_REST_IMAGE, ...NAVI_TAIL_IDLE_FRAMES, ...NAVI_REST_IDLE_FRAMES].map(
+  (src) => {
+    const image = new Image();
+    image.src = src;
+    return image;
+  },
+);
 
 // 채팅 셋업 상태 — 최상위 render() 호출보다 먼저 선언해야 TDZ(초기화 전 접근) 오류가 없다.
 let setupActive = false;
@@ -1532,7 +1543,8 @@ function switchView(viewName) {
     else if (viewName === "footprints") els.appSub.textContent = "나비의 기억";
     else els.appSub.textContent = hasUserMessages() ? `${catName()}와 대화 중` : "새로운 대화";
   }
-  if (viewName === "chat") window.setTimeout(() => moveNaviToComposer("", { instant: true }), 80);
+  if (viewName === "chat") window.setTimeout(() => moveNaviToComposer(""), 80);
+  else hideNaviWalker();
   closeDrawer();
 }
 
@@ -1540,92 +1552,82 @@ function initNaviWalker() {
   if (!els.naviWalker) return;
   requestAnimationFrame(() => {
     moveNaviToComposer("나비가 여기서 기다릴게.", { instant: true });
-    scheduleNaviWalk();
   });
   window.addEventListener("resize", () => {
-    if (isChatComposerVisible()) moveNaviToComposer("", { instant: true });
-    else moveNaviToQuietSpot();
+    if (isChatComposerVisible()) moveNaviToComposer("");
+    else hideNaviWalker();
   });
-}
-
-function scheduleNaviWalk() {
-  window.clearTimeout(naviWalkTimer);
-  naviWalkTimer = window.setTimeout(() => {
-    if (isChatComposerVisible()) moveNaviToComposer(randomNaviBubble());
-    else moveNaviToQuietSpot();
-    scheduleNaviWalk();
-  }, 7000 + Math.random() * 5000);
 }
 
 function isChatComposerVisible() {
-  return currentView === "chat" && els.composer && !els.composer.closest(".dock")?.classList.contains("is-hidden");
+  return (
+    currentView === "chat" &&
+    els.composer &&
+    !els.appShell?.classList.contains("is-hidden") &&
+    !els.composer.closest(".dock")?.classList.contains("is-hidden")
+  );
 }
 
 function moveNaviToComposer(bubbleText = "", options = {}) {
-  const target = els.composer || els.messageInput;
-  if (!target) return;
-  moveNaviNear(target, bubbleText, { ...options, anchor: "composer" });
+  if (!isChatComposerVisible()) {
+    hideNaviWalker();
+    return;
+  }
+  moveNaviNear(els.composer, bubbleText, { ...options, anchor: "composer" });
 }
 
 function moveNaviNear(target, bubbleText = "", options = {}) {
   if (!els.naviWalker || !target) return;
-  const rect = target.getBoundingClientRect();
+  const anchor = isChatComposerVisible() ? els.composer : target;
+  const rect = anchor.getBoundingClientRect();
   const walkerWidth = els.naviWalker.getBoundingClientRect().width || 140;
-  const isComposerAnchor = options.anchor === "composer" || target === els.messageInput || target === els.composer;
-  const x = isComposerAnchor
-    ? clamp(rect.left + 18, 14, window.innerWidth - walkerWidth - 14)
-    : clamp(rect.left + rect.width / 2 - walkerWidth / 2, 14, window.innerWidth - walkerWidth - 14);
-  const y = isComposerAnchor
-    ? clamp(rect.top - walkerWidth * 0.82, 86, window.innerHeight - walkerWidth - 18)
-    : clamp(rect.top - walkerWidth * 0.56, 86, window.innerHeight - walkerWidth - 18);
+  const x = clamp(rect.left + rect.width / 2 - walkerWidth / 2, 14, window.innerWidth - walkerWidth - 14);
+  const y = clamp(rect.top - walkerWidth + 10, 74, window.innerHeight - walkerWidth - 18);
   setNaviPosition(x, y, bubbleText, options);
 }
 
 function moveNaviToQuietSpot(bubbleText = "") {
-  if (!els.naviWalker) return;
-  const walkerWidth = els.naviWalker.getBoundingClientRect().width || 140;
-  const x = clamp(28 + Math.random() * (window.innerWidth - walkerWidth - 56), 14, window.innerWidth - walkerWidth - 14);
-  const y = clamp(130 + Math.random() * (window.innerHeight - walkerWidth - 180), 86, window.innerHeight - walkerWidth - 18);
-  setNaviPosition(x, y, bubbleText || randomNaviBubble());
+  if (isChatComposerVisible()) moveNaviToComposer(bubbleText);
+  else hideNaviWalker();
 }
 
 function setNaviPosition(x, y, bubbleText = "", options = {}) {
   naviPosition = { x, y };
   els.naviWalker.style.setProperty("--navi-x", `${x}px`);
   els.naviWalker.style.setProperty("--navi-y", `${y}px`);
-  els.naviWalker.classList.toggle("is-walking", !options.instant);
-  setNaviSprite(!options.instant, { animateRest: false });
+  els.naviWalker.classList.remove("is-hidden");
+  els.naviWalker.classList.add("is-docked");
+  showNaviSittingIdle();
   window.clearTimeout(naviStopTimer);
-  naviStopTimer = window.setTimeout(() => {
-    els.naviWalker.classList.remove("is-walking");
-    setNaviSprite(false, { animateRest: !options.instant });
-  }, options.instant ? 0 : 1800);
   showNaviBubble(bubbleText);
 }
 
-function setNaviSprite(isWalking, options = {}) {
+function showNaviSittingIdle() {
   if (!els.naviWalkerImage) return;
-  if (isWalking) {
-    startNaviFrameAnimation();
-    return;
-  }
   stopNaviFrameAnimation();
-  if (options.animateRest) {
-    startNaviRestIdleAnimation();
-    return;
-  }
-  setNaviRestImage();
+  stopNaviRestIdleAnimation();
+  window.clearTimeout(naviRestCycleTimer);
+  els.naviWalkerImage.src = NAVI_SIT_IMAGE;
+  els.naviWalkerImage.dataset.still = NAVI_SIT_IMAGE;
+  naviRestCycleTimer = window.setTimeout(() => startNaviTailIdleAnimation(), NAVI_TAIL_IDLE_DELAY_MS);
 }
 
-function startNaviFrameAnimation() {
+function startNaviTailIdleAnimation() {
   if (!els.naviWalkerImage || naviFrameTimer) return;
   stopNaviRestIdleAnimation();
+  window.clearTimeout(naviRestCycleTimer);
   naviFrameIndex = 0;
-  els.naviWalkerImage.src = NAVI_WALK_FRAMES[naviFrameIndex];
+  els.naviWalkerImage.src = NAVI_TAIL_IDLE_FRAMES[naviFrameIndex] || NAVI_SIT_IMAGE;
   naviFrameTimer = window.setInterval(() => {
-    naviFrameIndex = (naviFrameIndex + 1) % NAVI_WALK_FRAMES.length;
-    els.naviWalkerImage.src = NAVI_WALK_FRAMES[naviFrameIndex];
-  }, NAVI_FRAME_MS);
+    naviFrameIndex = (naviFrameIndex + 1) % NAVI_TAIL_IDLE_FRAMES.length;
+    if (naviFrameIndex === 0) {
+      stopNaviFrameAnimation();
+      els.naviWalkerImage.src = NAVI_SIT_IMAGE;
+      naviRestCycleTimer = window.setTimeout(() => startNaviRestIdleAnimation(), NAVI_REST_AFTER_MS);
+      return;
+    }
+    els.naviWalkerImage.src = NAVI_TAIL_IDLE_FRAMES[naviFrameIndex] || NAVI_SIT_IMAGE;
+  }, NAVI_TAIL_FRAME_MS);
 }
 
 function stopNaviFrameAnimation() {
@@ -1636,7 +1638,9 @@ function stopNaviFrameAnimation() {
 
 function startNaviRestIdleAnimation() {
   if (!els.naviWalkerImage) return;
+  stopNaviFrameAnimation();
   stopNaviRestIdleAnimation();
+  window.clearTimeout(naviRestCycleTimer);
   if (!NAVI_REST_IDLE_FRAMES.length) {
     setNaviRestImage();
     return;
@@ -1647,6 +1651,9 @@ function startNaviRestIdleAnimation() {
     restFrameIndex += 1;
     if (restFrameIndex >= NAVI_REST_IDLE_FRAMES.length) {
       setNaviRestImage();
+      naviRestCycleTimer = window.setTimeout(() => {
+        if (isChatComposerVisible()) showNaviSittingIdle();
+      }, NAVI_REST_HOLD_MS);
       return;
     }
     els.naviWalkerImage.src = NAVI_REST_IDLE_FRAMES[restFrameIndex];
@@ -1662,6 +1669,17 @@ function setNaviRestImage() {
   stopNaviRestIdleAnimation();
   els.naviWalkerImage.src = NAVI_REST_IMAGE;
   els.naviWalkerImage.dataset.still = NAVI_REST_IMAGE;
+}
+
+function hideNaviWalker() {
+  if (!els.naviWalker) return;
+  stopNaviFrameAnimation();
+  stopNaviRestIdleAnimation();
+  window.clearTimeout(naviRestCycleTimer);
+  window.clearTimeout(naviStopTimer);
+  els.naviWalker.classList.add("is-hidden");
+  els.naviWalker.classList.remove("is-docked", "has-bubble");
+  if (els.naviWalkerImage) els.naviWalkerImage.src = NAVI_SIT_IMAGE;
 }
 
 function showNaviBubble(text) {

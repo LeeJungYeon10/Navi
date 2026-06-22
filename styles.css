@@ -604,7 +604,8 @@ body.is-auth-booting .app-shell {
 
 .dock {
   flex: 0 0 auto;
-  padding: 6px 14px calc(10px + env(safe-area-inset-bottom));
+  position: relative;
+  padding: clamp(78px, 20vw, 98px) 14px calc(10px + env(safe-area-inset-bottom));
 }
 
 .composer {
@@ -1352,11 +1353,11 @@ button {
   position: fixed;
   left: 0;
   top: 0;
-  z-index: 20;
-  width: clamp(96px, 18vw, 140px);
+  z-index: 24;
+  width: clamp(108px, 24vw, 132px);
   pointer-events: none;
   transform: translate3d(var(--navi-x, 170px), var(--navi-y, 230px), 0);
-  transition: transform 1.4s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s ease;
+  transition: transform 0.22s ease, opacity 0.2s ease;
 }
 
 .navi-walker img {
