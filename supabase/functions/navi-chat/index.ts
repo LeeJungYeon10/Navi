@@ -13,8 +13,23 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-function buildSystemPrompt(catName: string) {
+type Language = "ko" | "en";
+
+function normalizeLanguage(value: unknown): Language {
+  return value === "en" ? "en" : "ko";
+}
+
+function buildSystemPrompt(catName: string, language: Language) {
   const name = catName.trim() || "나비";
+  const languageRule = language === "en"
+    ? `- Reply in natural, gentle English.
+- Keep the companion-cat personality, but do not over-localize the product voice yet.
+- If the cat name is Korean, keep that name as-is.`
+    : `- 한국어로 답한다.`;
+  const crisisReply = language === "en"
+    ? `"This might be a dangerous and painful moment. Please do not handle it alone; call local emergency services now, or tell someone close to you what is happening. ${name} is here hoping you move toward safety."`
+    : `"지금 많이 위험하고 힘든 순간일 수 있어. 혼자 버티지 말고 바로 119나 112에 연락하거나 가까운 사람에게 지금 상태를 알려줘. ${name}는 여기서 네가 안전한 쪽으로 움직이길 같이 바랄게."`;
+
   return `너는 웹앱 "안녕 나비야"의 반려묘형 AI 동반자 "${name}"다.
 
 [역할]
@@ -29,7 +44,7 @@ function buildSystemPrompt(catName: string) {
 - "${name}가 보기엔", "${name}는 여기 있을게"처럼 1인칭 표현에 이 이름을 쓴다.
 
 [말투]
-- 한국어로 답한다.
+${languageRule}
 - 2~3문장 안에서 짧게 말한다.
 - "같이 해볼까?", "천천히 해도 괜찮아"처럼 부드러운 표현을 쓴다.
 - 과한 애교, 긴 설교, 전문 용어 남발은 피한다.
@@ -42,7 +57,7 @@ function buildSystemPrompt(catName: string) {
 
 [위기 신호 대응]
 사용자가 자해, 자살, 타해, 극심한 위기 표현을 하면 아래 톤으로 답한다.
-"지금 많이 위험하고 힘든 순간일 수 있어. 혼자 버티지 말고 바로 119나 112에 연락하거나 가까운 사람에게 지금 상태를 알려줘. ${name}는 여기서 네가 안전한 쪽으로 움직이길 같이 바랄게."
+${crisisReply}
 
 [응답 방식]
 - 사용자의 최근 메시지와 제공된 context 태그만 참고한다.
@@ -67,6 +82,7 @@ serve(async (req: Request) => {
   }
 
   let catName = "나비";
+  let language: Language = "ko";
 
   try {
     if (!GEMINI_API_KEY && !OPENAI_API_KEY) {
@@ -81,11 +97,13 @@ serve(async (req: Request) => {
         mood?: string | null;
         wantsFood?: boolean;
         catName?: string | null;
+        language?: Language | null;
       };
     };
 
     catName = (context?.catName || "나비").trim() || "나비";
-    const systemPrompt = buildSystemPrompt(catName);
+    language = normalizeLanguage(context?.language);
+    const systemPrompt = buildSystemPrompt(catName, language);
 
     const conversation: ChatMessage[] = messages
       .filter((message) => !message.loading)
@@ -101,11 +119,11 @@ serve(async (req: Request) => {
 
     if (!conversation.length || conversation.at(-1)?.role !== "user") {
       return json({
-        text: catFallback(catName, `응, ${catName}가 듣고 있어. 오늘 상태를 한마디만 더 말해줘.`),
+        text: catFallback(catName, fallbackText(language, catName, "emptyConversation")),
       });
     }
 
-    const tags = buildContextTags(context);
+    const tags = buildContextTags(context, language);
     if (tags.length) {
       const last = conversation.at(-1);
       if (last) last.content = `[${tags.join(", ")}]\n${last.content}`;
@@ -122,17 +140,29 @@ serve(async (req: Request) => {
     }
 
     if (raw == null) {
-      raw = `${catName}가 잠깐 생각이 엉켰어. 그래도 네 말은 여기 잘 놓아둘게.`;
+      raw = fallbackText(language, catName, "noProviderReply");
     }
 
     return json({ text: catFallback(catName, raw) });
   } catch (error) {
     console.error("navi-chat error:", error);
     return json({
-      text: catFallback(catName, `${catName}가 잠깐 대답을 못 불러왔어. 그래도 오늘 상태는 발자국으로 조용히 정리해볼게.`),
+      text: catFallback(catName, fallbackText(language, catName, "error")),
     });
   }
 });
+
+function fallbackText(language: Language, catName: string, kind: "emptyConversation" | "noProviderReply" | "error") {
+  if (language === "en") {
+    if (kind === "emptyConversation") return `Yes, ${catName} is listening. Tell me one small thing about how today feels.`;
+    if (kind === "noProviderReply") return `${catName} got a little tangled for a moment. Still, I'll keep your words here gently.`;
+    return `${catName} couldn't bring back an answer for a moment. Still, we can quietly shape today's state into a footprint.`;
+  }
+
+  if (kind === "emptyConversation") return `응, ${catName}가 듣고 있어. 오늘 상태를 한마디만 더 말해줘.`;
+  if (kind === "noProviderReply") return `${catName}가 잠깐 생각이 엉켰어. 그래도 네 말은 여기 잘 놓아둘게.`;
+  return `${catName}가 잠깐 대답을 못 불러왔어. 그래도 오늘 상태는 발자국으로 조용히 정리해볼게.`;
+}
 
 async function callGemini(systemPrompt: string, conversation: ChatMessage[]): Promise<string | null> {
   try {
@@ -211,14 +241,22 @@ async function callOpenAI(systemPrompt: string, conversation: ChatMessage[]): Pr
   }
 }
 
-function buildContextTags(context?: {
+function buildContextTags(context: {
   sleepHours?: number | null;
   activityMinutes?: number | null;
   mood?: string | null;
   wantsFood?: boolean;
-}) {
+} | undefined, language: Language = "ko") {
   if (!context) return [];
   const tags: string[] = [];
+  if (language === "en") {
+    if (context.sleepHours != null) tags.push(`sleep ${context.sleepHours}h`);
+    if (context.activityMinutes != null) tags.push(`activity ${context.activityMinutes}m`);
+    if (context.mood) tags.push(`mood ${context.mood}`);
+    if (context.wantsFood) tags.push("food/nutrition mentioned");
+    return tags;
+  }
+
   if (context.sleepHours != null) tags.push(`수면 ${context.sleepHours}h`);
   if (context.activityMinutes != null) tags.push(`활동 ${context.activityMinutes}m`);
   if (context.mood) tags.push(`기분 ${context.mood}`);

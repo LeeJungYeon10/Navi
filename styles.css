@@ -1094,6 +1094,42 @@ body.is-auth-booting .app-shell {
   margin: 8px 0 18px;
 }
 
+.language-setting {
+  margin: 8px 0 18px;
+  padding: 14px 16px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: #fffdfa;
+}
+
+.language-setting label {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.language-setting select {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+}
+
+.language-setting p {
+  margin-top: 8px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--ink-faint);
+}
+
 .btn-ghost {
   min-height: 40px;
   padding: 0 16px;

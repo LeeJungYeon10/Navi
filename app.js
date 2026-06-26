@@ -82,11 +82,265 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("beforeunload", () => _applySessionBonusAndSave());
 _startSession(); // 앱 로드 시 세션 시작
 
-const labels = {
-  mood: { calm: "안정", tired: "피곤", anxious: "불안", sad: "가라앉음", happy: "좋음", mixed: "복합적", unknown: "미입력" },
-  sleep: { unknown: "미입력", poor: "부족", okay: "보통", good: "충분" },
-  activity: { unknown: "미입력", low: "낮음", okay: "보통", good: "좋음" },
-  routine: { breathing: "3분 호흡", walk: "10분 걷기", water: "물 마시기", stretch: "가벼운 스트레칭", journal: "한 문장 적기", rest: "쉬기" },
+const DEFAULT_LANGUAGE = "ko";
+const SUPPORTED_LANGUAGES = ["ko", "en"];
+
+const TRANSLATIONS = {
+  ko: {
+    appTitle: "안녕 나비야",
+    appDescription: "안녕 나비야는 매일 대화하는 온라인 반려묘가 신체와 마음을 함께 돌봐주는 PWA 건강 동반자입니다.",
+    ogDescription: "여기를 눌러 링크를 확인하세요.",
+    welcomeAria: "나비의 첫 인사",
+    naviAlt: "나비",
+    welcomeText: "안녕, 나는 오늘<br />널 만나서 기분이 좋아",
+    welcomeTypingText: "안녕, 나는 오늘\n널 만나서 기분이 좋아.",
+    moodQuestion: "네 기분은 어때?",
+    moodGood: "오늘은<br />컨디션이 좋네",
+    moodMeh: "오늘<br />그저 그래",
+    freePromptLabel: "또는 직접 들려줘",
+    welcomeInputLabel: "오늘의 기분",
+    welcomeInputPlaceholder: "네 기분을 입력해봐",
+    sendAria: "보내기",
+    googleContinue: "Google로 계속하기",
+    guestContinue: "로그인 없이 둘러보기",
+    responseAria: "나비의 응답",
+    responseContinue: "나비와 계속하기",
+    profileAria: "프로필 설정",
+    profileTitle: "조금만 알려줄래?",
+    profileUserLabel: "나를 뭐라고 부르면 좋을까? <span class=\"hint\">(닉네임)</span>",
+    profileUserPlaceholder: "예: 정연",
+    profileCatLabel: "이 아이의 이름도 지어줄래? <span class=\"hint\">(기본: 나비)</span>",
+    profileCatPlaceholder: "나비",
+    profileStart: "나비와 시작하기",
+    menuAria: "메뉴",
+    appSubNew: "새로운 대화",
+    naviProfileAria: "반려묘 프로필",
+    meAria: "마이페이지",
+    greetLine: "안녕,<br />오늘 하루는 어땠어?",
+    greetLineWithName: "안녕 {name},<br>오늘 하루는 어땠어?",
+    greetSub: "아래에 편하게 적어줘 🐾",
+    chatAria: "나비와 대화",
+    setupAria: "로그인 후 이름 설정",
+    setupFirstStep: "첫 인사",
+    setupUserStep: "내 이름 설정",
+    setupCatStep: "고양이 이름 설정",
+    setupUserTitle: "내가 너를 뭐라고 부르면 될까?",
+    setupCatTitle: "{who}내 이름도 지어줄래?",
+    setupDefaultDescription: "이름은 나비가 대화할 때만 다정하게 불러줄게요.",
+    setupUserDescription: "편한 이름을 적어줘도 되고, 지금은 건너뛰어도 괜찮아.",
+    setupCatDescription: "고양이 이름을 정하면 대화창에서 그 이름으로 불러줄게.",
+    setupInputLabel: "이름 입력",
+    setupUserPlaceholder: "편한 이름을 적어볼래?",
+    setupCatPlaceholder: "예: 나비",
+    next: "다음",
+    start: "시작하기",
+    skip: "건너뛰기",
+    quickActionsAria: "빠른 입력",
+    quickSleepPrompt: "어제 6시간 잤고 오늘은 조금 피곤해.",
+    quickSleep: "수면 체크",
+    quickActivityPrompt: "오늘 20분 걸었고 기분은 괜찮아.",
+    quickActivity: "활동 체크",
+    quickMindPrompt: "요즘 집중이 잘 안 되고 마음이 불안해.",
+    quickMind: "마음 체크",
+    footprintDraftAria: "오늘의 발자국 저장",
+    footprintToday: "오늘의 발자국",
+    footprintTitle: "나비가 이렇게 남겨볼까?",
+    mood: "감정",
+    sleep: "수면",
+    activity: "활동",
+    routine: "추천 루틴",
+    todayNote: "오늘 한 줄",
+    todayNotePlaceholder: "예: 오늘은 조금 느린 하루였다.",
+    saveFootprint: "발자국 남기기",
+    skipFootprint: "오늘은 넘기기",
+    naviProfile: "반려묘 프로필",
+    edit: "수정",
+    catNameLabel: "고양이 이름",
+    catNamePlaceholder: "고양이 이름",
+    save: "저장",
+    cancel: "취소",
+    birthday: "생일",
+    birthdayEmpty: "아직 기록 없음",
+    birthdayHint: "첫 만남한 날이에요",
+    recentFootprintsAria: "최근 발자국",
+    recent7Days: "최근 7일",
+    naviMemory: "나비의 기억",
+    mePanelAria: "내 정보",
+    me: "나",
+    myPage: "마이페이지",
+    nickname: "닉네임",
+    googleAccount: "Google 계정",
+    accountNote: "발자국 요약이 이 계정에 동기화돼요.",
+    cloudStorage: "클라우드 저장",
+    localStorage: "로컬 저장",
+    googleLogin: "Google 로그인",
+    localMode: "로컬 모드",
+    name: "이름",
+    goal: "현재 목표",
+    tone: "선호 대화 톤",
+    saveProfile: "저장하기",
+    logout: "로그아웃",
+    deleteAccount: "회원탈퇴",
+    messagePlaceholder: "무엇이든 편하게 적어줘",
+    drawerAria: "이전 대화",
+    drawerToday: "🐾 오늘의 나비",
+    newChat: "새 채팅",
+    searchHistoryPlaceholder: "지난 대화 검색하기...",
+    recentChats: "최근 대화",
+    naviWalking: "나비가 산책 중이에요.",
+    languageLabel: "언어",
+    languageHint: "지금은 UI 골격과 나비 응답 언어만 먼저 바꿔요.",
+    languageKo: "한국어",
+    languageEn: "English",
+    loginProblem: "로그인에 문제가 있어요",
+    profileUnset: "아직 설정 안 함",
+    chattingWithCat: "{catName}와 대화 중",
+    catProfileSub: "{catName} 프로필",
+    bondLabel: "유대감 {bond}%",
+    levelLabel: "Lv.{level} {name}",
+    noFootprintsTitle: "아직 남긴 발자국이 없어요",
+    noFootprintsBody: "나비와 오늘을 이야기한 뒤 발자국을 남겨보세요.",
+    nowChat: "지금 대화",
+    inProgress: "진행 중",
+    emptySearch: "검색 결과가 없어요.",
+    emptyHistory: "아직 저장된 대화가 없어요.<br>새 대화를 시작하면 여기에 쌓여요.",
+    newChatTitle: "새 대화",
+  },
+  en: {
+    appTitle: "Hello Naviya",
+    appDescription: "Hello Naviya is a PWA health companion where an online companion cat helps you care for body and mind through daily conversation.",
+    ogDescription: "Tap to open the link.",
+    welcomeAria: "Navi's first hello",
+    naviAlt: "Navi",
+    welcomeText: "Hi, meeting you today<br />makes me happy",
+    welcomeTypingText: "Hi, meeting you today\nmakes me happy.",
+    moodQuestion: "How are you feeling?",
+    moodGood: "I'm feeling<br />pretty good",
+    moodMeh: "Today feels<br />just okay",
+    freePromptLabel: "Or tell me in your own words",
+    welcomeInputLabel: "Today's mood",
+    welcomeInputPlaceholder: "Type how you feel",
+    sendAria: "Send",
+    googleContinue: "Continue with Google",
+    guestContinue: "Browse without login",
+    responseAria: "Navi's reply",
+    responseContinue: "Continue with Navi",
+    profileAria: "Profile setup",
+    profileTitle: "Can you tell me a little?",
+    profileUserLabel: "What should I call you? <span class=\"hint\">(nickname)</span>",
+    profileUserPlaceholder: "Ex: Jamie",
+    profileCatLabel: "Will you name this cat too? <span class=\"hint\">(default: Navi)</span>",
+    profileCatPlaceholder: "Navi",
+    profileStart: "Start with Navi",
+    menuAria: "Menu",
+    appSubNew: "New conversation",
+    naviProfileAria: "Cat profile",
+    meAria: "My page",
+    greetLine: "Hi,<br />how was your day?",
+    greetLineWithName: "Hi {name},<br>how was your day?",
+    greetSub: "Write anything below 🐾",
+    chatAria: "Chat with Navi",
+    setupAria: "Name setup after login",
+    setupFirstStep: "First hello",
+    setupUserStep: "Your name",
+    setupCatStep: "Cat name",
+    setupUserTitle: "What should I call you?",
+    setupCatTitle: "{who}will you name me too?",
+    setupDefaultDescription: "Navi will use your name only to make the chat feel warmer.",
+    setupUserDescription: "You can add a comfortable name, or skip it for now.",
+    setupCatDescription: "If you name the cat, that name will appear in chat.",
+    setupInputLabel: "Name input",
+    setupUserPlaceholder: "Type a name you like",
+    setupCatPlaceholder: "Ex: Navi",
+    next: "Next",
+    start: "Start",
+    skip: "Skip",
+    quickActionsAria: "Quick input",
+    quickSleepPrompt: "I slept 6 hours yesterday and feel a bit tired today.",
+    quickSleep: "Sleep check",
+    quickActivityPrompt: "I walked for 20 minutes today and feel okay.",
+    quickActivity: "Activity check",
+    quickMindPrompt: "I have trouble focusing lately and feel anxious.",
+    quickMind: "Mood check",
+    footprintDraftAria: "Save today's footprint",
+    footprintToday: "Today's footprint",
+    footprintTitle: "Should Navi save it like this?",
+    mood: "Mood",
+    sleep: "Sleep",
+    activity: "Activity",
+    routine: "Suggested routine",
+    todayNote: "One line for today",
+    todayNotePlaceholder: "Ex: Today was a slower day.",
+    saveFootprint: "Save footprint",
+    skipFootprint: "Skip today",
+    naviProfile: "Cat profile",
+    edit: "Edit",
+    catNameLabel: "Cat name",
+    catNamePlaceholder: "Cat name",
+    save: "Save",
+    cancel: "Cancel",
+    birthday: "Birthday",
+    birthdayEmpty: "No record yet",
+    birthdayHint: "The day you first met",
+    recentFootprintsAria: "Recent footprints",
+    recent7Days: "Last 7 days",
+    naviMemory: "Navi's memory",
+    mePanelAria: "My info",
+    me: "Me",
+    myPage: "My page",
+    nickname: "Nickname",
+    googleAccount: "Google account",
+    accountNote: "Footprint summaries sync to this account.",
+    cloudStorage: "Cloud storage",
+    localStorage: "Local storage",
+    googleLogin: "Google login",
+    localMode: "Local mode",
+    name: "Name",
+    goal: "Current goal",
+    tone: "Preferred tone",
+    saveProfile: "Save",
+    logout: "Log out",
+    deleteAccount: "Delete account",
+    messagePlaceholder: "Write anything comfortably",
+    drawerAria: "Previous conversations",
+    drawerToday: "🐾 Today's Navi",
+    newChat: "New chat",
+    searchHistoryPlaceholder: "Search past conversations...",
+    recentChats: "Recent conversations",
+    naviWalking: "Navi is walking around.",
+    languageLabel: "Language",
+    languageHint: "For now, this only changes the UI scaffold and Navi reply language.",
+    languageKo: "한국어",
+    languageEn: "English",
+    loginProblem: "There is a login problem",
+    profileUnset: "Not set yet",
+    chattingWithCat: "Chatting with {catName}",
+    catProfileSub: "{catName} profile",
+    bondLabel: "Bond {bond}%",
+    levelLabel: "Lv.{level} {name}",
+    noFootprintsTitle: "No footprints yet",
+    noFootprintsBody: "Talk with Navi about today, then leave a footprint.",
+    nowChat: "Current chat",
+    inProgress: "In progress",
+    emptySearch: "No search results.",
+    emptyHistory: "No saved conversations yet.<br>New chats will appear here.",
+    newChatTitle: "New chat",
+  },
+};
+
+const LANGUAGE_LABELS = {
+  ko: {
+    mood: { calm: "안정", tired: "피곤", anxious: "불안", sad: "가라앉음", happy: "좋음", mixed: "복합적", unknown: "미입력" },
+    sleep: { unknown: "미입력", poor: "부족", okay: "보통", good: "충분" },
+    activity: { unknown: "미입력", low: "낮음", okay: "보통", good: "좋음" },
+    routine: { breathing: "3분 호흡", walk: "10분 걷기", water: "물 마시기", stretch: "가벼운 스트레칭", journal: "한 문장 적기", rest: "쉬기" },
+  },
+  en: {
+    mood: { calm: "calm", tired: "tired", anxious: "anxious", sad: "low", happy: "good", mixed: "mixed", unknown: "not entered" },
+    sleep: { unknown: "not entered", poor: "short", okay: "okay", good: "enough" },
+    activity: { unknown: "not entered", low: "low", okay: "okay", good: "good" },
+    routine: { breathing: "3-min breathing", walk: "10-min walk", water: "drink water", stretch: "light stretch", journal: "one-line journal", rest: "rest" },
+  },
 };
 
 const DAILY_BOND_LIMIT = 12;
@@ -113,6 +367,7 @@ const NAVI_LEVELS = [
 ];
 
 const initialState = {
+  language: DEFAULT_LANGUAGE,
   profile: { name: "", goal: "정서적 안정", tone: "다정하고 차분하게", focus: [] },
   day: { sleepHours: null, activityMinutes: null, mood: null, energy: "보통", bond: 42, routines: [] },
   navi: { ...DEFAULT_NAVI_STATE },
@@ -136,10 +391,71 @@ let syncTimer = null;
 let dismissWelcome = () => {};
 let pendingWelcomeMessage = null;
 
+function getLanguage() {
+  return SUPPORTED_LANGUAGES.includes(state?.language) ? state.language : DEFAULT_LANGUAGE;
+}
+
+function getLabels() {
+  return LANGUAGE_LABELS[getLanguage()] || LANGUAGE_LABELS[DEFAULT_LANGUAGE];
+}
+
+function t(key, params = {}) {
+  const dictionary = TRANSLATIONS[getLanguage()] || TRANSLATIONS[DEFAULT_LANGUAGE];
+  const fallback = TRANSLATIONS[DEFAULT_LANGUAGE][key] || key;
+  const template = dictionary[key] || fallback;
+  return Object.entries(params).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, String(value ?? "")), template);
+}
+
+function applyStaticTranslations() {
+  const language = getLanguage();
+  document.documentElement.lang = language;
+  document.title = t("appTitle");
+  document.querySelector('meta[name="description"]')?.setAttribute("content", t("appDescription"));
+  document.querySelector('meta[property="og:title"]')?.setAttribute("content", t("appTitle"));
+  document.querySelector('meta[property="og:description"]')?.setAttribute("content", t("ogDescription"));
+  document.querySelector('meta[name="twitter:title"]')?.setAttribute("content", t("appTitle"));
+  document.querySelector('meta[name="twitter:description"]')?.setAttribute("content", t("ogDescription"));
+
+  document.querySelectorAll("[data-i18n]").forEach((node) => {
+    node.innerHTML = t(node.dataset.i18n);
+  });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach((node) => {
+    node.setAttribute("placeholder", t(node.dataset.i18nPlaceholder));
+  });
+  document.querySelectorAll("[data-i18n-aria-label]").forEach((node) => {
+    node.setAttribute("aria-label", t(node.dataset.i18nAriaLabel));
+  });
+  document.querySelectorAll("[data-i18n-alt]").forEach((node) => {
+    node.setAttribute("alt", t(node.dataset.i18nAlt));
+  });
+  document.querySelectorAll("[data-i18n-value]").forEach((node) => {
+    node.setAttribute("value", t(node.dataset.i18nValue));
+  });
+  document.querySelectorAll("[data-prompt-key]").forEach((node) => {
+    node.dataset.prompt = t(node.dataset.promptKey);
+  });
+
+  if (els.languageSelect) els.languageSelect.value = language;
+}
+
+function setLanguage(language) {
+  if (!SUPPORTED_LANGUAGES.includes(language) || state.language === language) return;
+  state.language = language;
+  persist();
+  render();
+}
+
 const MOOD_RESPONSES = {
-  good: "너도 기분이 좋다니 다행이야!<br>그럼 우리 산책하러 가자 🐾",
-  meh: "그렇구나.<br>기분이 안 좋을 땐 좀 걷는 게<br>도움이 된대. 같이 걸어볼까?",
-  free: "들려줘서 고마워.<br>잠깐 같이 바람 쐬러 갈까? 🐾",
+  ko: {
+    good: "너도 기분이 좋다니 다행이야!<br>그럼 우리 산책하러 가자 🐾",
+    meh: "그렇구나.<br>기분이 안 좋을 땐 좀 걷는 게<br>도움이 된대. 같이 걸어볼까?",
+    free: "들려줘서 고마워.<br>잠깐 같이 바람 쐬러 갈까? 🐾",
+  },
+  en: {
+    good: "I'm glad you're feeling good too!<br>Then let's go for a little walk 🐾",
+    meh: "I hear you.<br>When the day feels off, a short walk can help.<br>Want to walk together?",
+    free: "Thank you for telling me.<br>Should we get a little fresh air together? 🐾",
+  },
 };
 
 const els = {
@@ -212,6 +528,7 @@ const els = {
   naviWalkerImage: document.querySelector("#naviWalkerImage"),
   naviBubble: document.querySelector("#naviBubble"),
   composer: document.querySelector(".composer"),
+  languageSelect: document.querySelector("#languageSelect"),
 };
 
 if (shouldRestoreOnLoad()) {
@@ -346,7 +663,7 @@ function showWelcomeAuthError(message) {
   const appVisible = !els.appShell?.classList.contains("is-hidden");
   if (appVisible) {
     addCatMessage(message);
-    if (els.appSub) els.appSub.textContent = "로그인에 문제가 있어요";
+    if (els.appSub) els.appSub.textContent = t("loginProblem");
     render();
     return;
   }
@@ -419,13 +736,13 @@ function dismissWelcomeScreen() {
 function updateGreetingLine() {
   const name = (state.profile.name || "").trim();
   if (els.greetLine) {
-    els.greetLine.innerHTML = name ? `안녕 ${escapeHtml(name)},<br>오늘 하루는 어땠어?` : "안녕,<br>오늘 하루는 어땠어?";
+    els.greetLine.innerHTML = name ? t("greetLineWithName", { name: escapeHtml(name) }) : t("greetLine");
   }
 }
 
 function setChatEmpty(isEmpty) {
   els.appEmpty?.classList.toggle("is-hidden", !isEmpty);
-  if (els.appSub) els.appSub.textContent = isEmpty ? "새로운 대화" : `${catName()}와 대화 중`;
+  if (els.appSub) els.appSub.textContent = isEmpty ? t("appSubNew") : t("chattingWithCat", { catName: catName() });
 }
 
 function hasUserMessages() {
@@ -434,7 +751,8 @@ function hasUserMessages() {
 
 function showMoodResponse(mood, pendingText = "") {
   const resp = document.querySelector("#respText");
-  if (resp) resp.innerHTML = MOOD_RESPONSES[mood] || MOOD_RESPONSES.free;
+  const responses = MOOD_RESPONSES[getLanguage()] || MOOD_RESPONSES[DEFAULT_LANGUAGE];
+  if (resp) resp.innerHTML = responses[mood] || responses.free;
   pendingWelcomeMessage = pendingText || null;
   showFlowScreen("responseScreen");
 }
@@ -442,7 +760,7 @@ function showMoodResponse(mood, pendingText = "") {
 function showProfileScreen() {
   showFlowScreen("profileScreen");
   if (els.profileUserName) els.profileUserName.value = state.profile.name || "";
-  if (els.profileCatName) els.profileCatName.value = state.navi.name || "나비";
+  if (els.profileCatName) els.profileCatName.value = state.navi.name || (getLanguage() === "en" ? "Navi" : "나비");
 }
 
 async function finishProfileFlow() {
@@ -627,7 +945,7 @@ function initWelcome() {
   const google = document.querySelector("#welcomeGoogle");
 
   if (!returningAuth && !restoringApp) {
-    const fullText = "안녕, 나는 오늘\n널 만나서 기분이 좋아.";
+    const fullText = t("welcomeTypingText");
     let index = 0;
     let typing = true;
 
@@ -699,14 +1017,17 @@ function localizeCatSpeech(text) {
 }
 
 function getDefaultCatGreeting() {
+  if (getLanguage() === "en") {
+    return `Hi, I'm ${catName()}. Tell me comfortably how you slept and how much your body moved today.`;
+  }
   return `안녕, 나는 ${catName()}야. 오늘 잠은 어땠고 몸은 어느 정도 움직였는지 편하게 말해줘.`;
 }
 
 function formatNaviBirthday(birthday) {
-  if (!birthday) return "아직 기록 없음";
+  if (!birthday) return t("birthdayEmpty");
   const [year, month, day] = birthday.split("-").map(Number);
   if (!year || !month || !day) return birthday;
-  return `${year}년 ${month}월 ${day}일`;
+  return getLanguage() === "ko" ? `${year}년 ${month}월 ${day}일` : new Date(`${birthday}T00:00:00`).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
 // 로그인 사용자에게만 채팅창 안에서 내 이름 → 고양이 이름 순서로 묻는다.
@@ -755,20 +1076,20 @@ function showSetupStep() {
   if (!els.chatSetup || !els.chatSetupInput) return;
   els.chatSetup.classList.remove("is-hidden");
   if (setupStep === "userName") {
-    els.chatSetupStep.textContent = "내 이름 설정";
-    els.chatSetupTitle.textContent = "내가 너를 뭐라고 부르면 될까?";
-    els.chatSetupDescription.textContent = "편한 이름을 적어줘도 되고, 지금은 건너뛰어도 괜찮아.";
+    els.chatSetupStep.textContent = t("setupUserStep");
+    els.chatSetupTitle.textContent = t("setupUserTitle");
+    els.chatSetupDescription.textContent = t("setupUserDescription");
     els.chatSetupInput.value = state.profile.name || "";
-    els.chatSetupInput.placeholder = "편한 이름을 적어볼래?";
-    els.chatSetupSubmit.textContent = "다음";
+    els.chatSetupInput.placeholder = t("setupUserPlaceholder");
+    els.chatSetupSubmit.textContent = t("next");
   } else {
-    const who = state.profile.name ? `${state.profile.name}야, ` : "";
-    els.chatSetupStep.textContent = "고양이 이름 설정";
-    els.chatSetupTitle.textContent = `${who}내 이름도 지어줄래?`;
-    els.chatSetupDescription.textContent = "고양이 이름을 정하면 대화창에서 그 이름으로 불러줄게.";
+    const who = state.profile.name ? (getLanguage() === "ko" ? `${state.profile.name}야, ` : `${state.profile.name}, `) : "";
+    els.chatSetupStep.textContent = t("setupCatStep");
+    els.chatSetupTitle.textContent = t("setupCatTitle", { who });
+    els.chatSetupDescription.textContent = t("setupCatDescription");
     els.chatSetupInput.value = state.navi.name || "";
-    els.chatSetupInput.placeholder = "예: 나비";
-    els.chatSetupSubmit.textContent = "시작하기";
+    els.chatSetupInput.placeholder = t("setupCatPlaceholder");
+    els.chatSetupSubmit.textContent = t("start");
   }
   window.setTimeout(() => els.chatSetupInput.focus(), 50);
 }
@@ -840,6 +1161,7 @@ function bindEvents() {
   els.chatSetupSkip?.addEventListener("click", handleSetupSkip);
   els.saveFootprint?.addEventListener("click", saveFootprint);
   els.skipFootprint?.addEventListener("click", skipFootprint);
+  els.languageSelect?.addEventListener("change", (event) => setLanguage(event.target.value));
 
   document.querySelector("#openDrawer")?.addEventListener("click", openDrawer);
   els.scrim?.addEventListener("click", closeDrawer);
@@ -1126,7 +1448,7 @@ async function callNavi(messages, context) {
         "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
         "apikey": SUPABASE_ANON_KEY,
       },
-      body: JSON.stringify({ messages, context: { ...context, catName: catName() } }),
+      body: JSON.stringify({ messages, context: { ...context, catName: catName(), language: getLanguage() } }),
       signal: AbortSignal.timeout(12000), // 12초 타임아웃
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1139,12 +1461,12 @@ async function callNavi(messages, context) {
 
 function analyzeMessage(message) {
   const lower = message.toLowerCase();
-  const sleepMatch = message.match(/(\d+(?:\.\d+)?)\s*시간/);
-  const minuteMatch = message.match(/(\d+)\s*분/);
-  const negativeMood = ["불안", "우울", "피곤", "힘들", "지침", "스트레스", "집중이 잘 안", "잠을 못"];
-  const positiveMood = ["괜찮", "좋", "편안", "상쾌", "기분이 나아", "차분"];
-  const activityWords = ["걷", "운동", "산책", "헬스", "요가", "활동"];
-  const foodWords = ["식사", "저녁", "아침", "점심", "먹", "영양"];
+  const sleepMatch = message.match(/(\d+(?:\.\d+)?)\s*(?:시간|hours?\b|hrs?\b|h\b)/i);
+  const minuteMatch = message.match(/(\d+)\s*(?:분|minutes?\b|mins?\b|m\b)/i);
+  const negativeMood = ["불안", "우울", "피곤", "힘들", "지침", "스트레스", "집중이 잘 안", "잠을 못", "anxious", "sad", "tired", "stressed", "exhausted", "can't focus", "cannot focus", "couldn't sleep"];
+  const positiveMood = ["괜찮", "좋", "편안", "상쾌", "기분이 나아", "차분", "okay", "good", "calm", "better", "fine"];
+  const activityWords = ["걷", "운동", "산책", "헬스", "요가", "활동", "walk", "walked", "exercise", "workout", "yoga", "active"];
+  const foodWords = ["식사", "저녁", "아침", "점심", "먹", "영양", "meal", "dinner", "breakfast", "lunch", "eat", "food", "nutrition"];
 
   return {
     sleepHours: sleepMatch ? Number(sleepMatch[1]) : null,
@@ -1222,6 +1544,19 @@ function makeNaviNote(mood, sleep, activity) {
 }
 
 function makeCatReply(context) {
+  if (getLanguage() === "en") {
+    const replies = [];
+    if (context.sleepHours !== null) {
+      replies.push(context.sleepHours < 6 ? `With ${context.sleepHours} hours of sleep, let's keep recovery first today.` : `${context.sleepHours} hours of sleep is a helpful clue.`);
+    }
+    if (context.activityMinutes !== null) replies.push(`I noticed ${context.activityMinutes} minutes of movement.`);
+    if (context.mood === "anxious") replies.push("When your mind feels tense, try three rounds of 4-second inhale and 6-second exhale.");
+    if (context.wantsFood) replies.push("For food, starting lightly with today's condition is okay.");
+    if (!replies.length) replies.push("If you tell me one more thing about sleep, activity, or mood, I can shape today's footprint better.");
+    replies.push("I'll save only the summary you confirm, not the whole conversation.");
+    return replies.join(" ");
+  }
+
   const replies = [];
   if (context.sleepHours !== null) {
     replies.push(context.sleepHours < 6 ? `수면이 ${context.sleepHours}시간이면 오늘은 회복 우선으로 잡자.` : `${context.sleepHours}시간 잔 건 좋은 단서야.`);
@@ -1359,6 +1694,8 @@ function isYesterday(dateValue, todayValue) {
 }
 
 function render() {
+  applyStaticTranslations();
+  updateGreetingLine();
   renderAuth(authSession);
   renderChat();
   renderMetrics();
@@ -1399,14 +1736,14 @@ function renderAuth(session) {
   }
 
   setWelcomeGuestAvailable(!loggedIn);
-  if (els.storageMode) els.storageMode.textContent = loggedIn ? "클라우드 저장" : "로컬 저장";
+  if (els.storageMode) els.storageMode.textContent = loggedIn ? t("cloudStorage") : t("localStorage");
   if (els.authDisplayName) {
     const nickname = (state.profile.name || "").trim();
-    els.authDisplayName.textContent = nickname || "아직 설정 안 함";
+    els.authDisplayName.textContent = nickname || t("profileUnset");
   }
   if (els.authEmail) els.authEmail.textContent = email;
   if (els.authTitle) {
-    els.authTitle.textContent = configured ? "Google 로그인" : "로컬 모드";
+    els.authTitle.textContent = configured ? t("googleLogin") : t("localMode");
   }
 }
 
@@ -1430,20 +1767,28 @@ function renderChat() {
 
 function renderMetrics() {
   const growth = getNaviGrowth();
-  if (els.sleepMetric) els.sleepMetric.textContent = state.day.sleepHours === null ? "미입력" : `${state.day.sleepHours}시간`;
-  if (els.activityMetric) els.activityMetric.textContent = state.day.activityMinutes === null ? "미입력" : `${state.day.activityMinutes}분`;
-  if (els.moodMetric) els.moodMetric.textContent = state.day.mood || "미입력";
+  const labels = getLabels();
+  if (els.sleepMetric) els.sleepMetric.textContent = state.day.sleepHours === null ? labels.sleep.unknown : getLanguage() === "ko" ? `${state.day.sleepHours}시간` : `${state.day.sleepHours}h`;
+  if (els.activityMetric) els.activityMetric.textContent = state.day.activityMinutes === null ? labels.activity.unknown : getLanguage() === "ko" ? `${state.day.activityMinutes}분` : `${state.day.activityMinutes}m`;
+  if (els.moodMetric) els.moodMetric.textContent = state.day.mood || labels.mood.unknown;
   if (els.energyMetric) els.energyMetric.textContent = state.day.energy;
-  if (els.bondLabel) els.bondLabel.textContent = `유대감 ${state.day.bond}%`;
-  if (els.naviLevelLabel) els.naviLevelLabel.textContent = `Lv.${growth.level} ${growth.name}`;
+  if (els.bondLabel) els.bondLabel.textContent = t("bondLabel", { bond: state.day.bond });
+  if (els.naviLevelLabel) els.naviLevelLabel.textContent = t("levelLabel", { level: growth.level, name: growth.name });
 }
 
 function renderInsights() {
   if (!els.insightList) return;
+  const labels = getLabels();
   const insights = [];
-  insights.push(state.day.sleepHours === null ? "수면 시간을 말해주면 오늘 발자국의 수면 요약을 만들 수 있어요." : `수면 요약은 ${labels.sleep[mapSleep(state.day.sleepHours)]}입니다.`);
-  insights.push(state.day.activityMinutes === null ? "활동량이 비어 있습니다. 10분 걷기처럼 낮은 마찰의 루틴부터 시작해요." : `활동 요약은 ${labels.activity[mapActivity(state.day.activityMinutes)]}입니다.`);
-  if (state.day.mood === "긴장") insights.push("긴장 키워드가 감지되었습니다. 4-6 호흡법을 추천합니다.");
+  if (getLanguage() === "ko") {
+    insights.push(state.day.sleepHours === null ? "수면 시간을 말해주면 오늘 발자국의 수면 요약을 만들 수 있어요." : `수면 요약은 ${labels.sleep[mapSleep(state.day.sleepHours)]}입니다.`);
+    insights.push(state.day.activityMinutes === null ? "활동량이 비어 있습니다. 10분 걷기처럼 낮은 마찰의 루틴부터 시작해요." : `활동 요약은 ${labels.activity[mapActivity(state.day.activityMinutes)]}입니다.`);
+    if (state.day.mood === "긴장") insights.push("긴장 키워드가 감지되었습니다. 4-6 호흡법을 추천합니다.");
+  } else {
+    insights.push(state.day.sleepHours === null ? "Share your sleep time to make today's sleep summary." : `Sleep summary: ${labels.sleep[mapSleep(state.day.sleepHours)]}.`);
+    insights.push(state.day.activityMinutes === null ? "Activity is empty. Start with a low-friction routine like a 10-minute walk." : `Activity summary: ${labels.activity[mapActivity(state.day.activityMinutes)]}.`);
+    if (state.day.mood === "긴장") insights.push("Tension keywords were noticed. Try 4-6 breathing.");
+  }
   els.insightList.innerHTML = insights.map((insight) => `<li>${escapeHtml(insight)}</li>`).join("");
 }
 
@@ -1496,6 +1841,7 @@ function renderFootprintDraft() {
   const draft = FOOTPRINT_DRAFT_ENABLED ? state.footprintDraft : null;
   els.footprintDraft.classList.toggle("is-hidden", !draft);
   if (!draft) return;
+  const labels = getLabels();
   els.draftMood.textContent = labels.mood[draft.mood];
   els.draftSleep.textContent = labels.sleep[draft.sleep];
   els.draftActivity.textContent = labels.activity[draft.activity];
@@ -1506,6 +1852,7 @@ function renderFootprintDraft() {
 
 function renderFootprints() {
   if (!els.footprintList) return;
+  const labels = getLabels();
   const items = state.footprints.slice(0, 7);
   els.footprintList.innerHTML = items.length
     ? items
@@ -1514,9 +1861,9 @@ function renderFootprints() {
             <article class="footprint-item">
               <h3>${escapeHtml(item.footprint_date)}</h3>
               <div class="footprint-tags">
-                <span>감정 ${labels.mood[item.mood]}</span>
-                <span>수면 ${labels.sleep[item.sleep]}</span>
-                <span>활동 ${labels.activity[item.activity]}</span>
+                <span>${t("mood")} ${labels.mood[item.mood]}</span>
+                <span>${t("sleep")} ${labels.sleep[item.sleep]}</span>
+                <span>${t("activity")} ${labels.activity[item.activity]}</span>
                 <span>${labels.routine[item.routine]}</span>
               </div>
               <p class="navi-note">${escapeHtml(item.navi_note || item.nabi_note || "")}</p>
@@ -1525,7 +1872,7 @@ function renderFootprints() {
           `,
         )
         .join("")
-    : `<article class="footprint-item"><h3>아직 남긴 발자국이 없어요</h3><p class="navi-note">나비와 오늘을 이야기한 뒤 발자국을 남겨보세요.</p></article>`;
+    : `<article class="footprint-item"><h3>${escapeHtml(t("noFootprintsTitle"))}</h3><p class="navi-note">${escapeHtml(t("noFootprintsBody"))}</p></article>`;
 }
 
 function switchView(viewName) {
@@ -1538,10 +1885,10 @@ function switchView(viewName) {
   });
   document.querySelector(".dock")?.classList.toggle("is-hidden", viewName !== "chat");
   if (els.appSub) {
-    if (viewName === "me") els.appSub.textContent = "마이페이지";
-    else if (viewName === "navi") els.appSub.textContent = `${catName()} 프로필`;
-    else if (viewName === "footprints") els.appSub.textContent = "나비의 기억";
-    else els.appSub.textContent = hasUserMessages() ? `${catName()}와 대화 중` : "새로운 대화";
+    if (viewName === "me") els.appSub.textContent = t("myPage");
+    else if (viewName === "navi") els.appSub.textContent = t("catProfileSub", { catName: catName() });
+    else if (viewName === "footprints") els.appSub.textContent = t("naviMemory");
+    else els.appSub.textContent = hasUserMessages() ? t("chattingWithCat", { catName: catName() }) : t("appSubNew");
   }
   if (viewName === "chat") window.setTimeout(() => moveNaviToComposer(""), 80);
   else hideNaviWalker();
@@ -1714,7 +2061,7 @@ function getChatPreview(messages = state.messages) {
 
 function deriveChatTitle(messages = state.messages) {
   const first = getFirstUserMessage(messages);
-  if (!first) return "새 대화";
+  if (!first) return t("newChatTitle");
   return first.length > 24 ? `${first.slice(0, 24)}…` : first;
 }
 
@@ -1724,13 +2071,13 @@ function formatHistoryTime(iso) {
   const today = getToday();
   const day = iso.slice(0, 10);
   if (day === today) {
-    return date.toLocaleTimeString("ko-KR", { hour: "numeric", minute: "2-digit" });
+    return date.toLocaleTimeString(getLanguage() === "ko" ? "ko-KR" : "en-US", { hour: "numeric", minute: "2-digit" });
   }
   const diffDays = Math.floor((new Date(`${today}T00:00:00`) - new Date(`${day}T00:00:00`)) / 86400000);
   if (diffDays < 7) {
-    return date.toLocaleDateString("ko-KR", { weekday: "short" });
+    return date.toLocaleDateString(getLanguage() === "ko" ? "ko-KR" : "en-US", { weekday: "short" });
   }
-  return date.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" });
+  return date.toLocaleDateString(getLanguage() === "ko" ? "ko-KR" : "en-US", { month: "numeric", day: "numeric" });
 }
 
 function buildChatHistoryEntry(id, messages, createdAt) {
@@ -1823,7 +2170,7 @@ function renderChatHistory() {
 
   if (!items.length) {
     els.chatHistoryList.innerHTML =
-      `<p class="hist-empty">${query ? "검색 결과가 없어요." : "아직 저장된 대화가 없어요.<br>새 대화를 시작하면 여기에 쌓여요."}</p>`;
+      `<p class="hist-empty">${query ? escapeHtml(t("emptySearch")) : t("emptyHistory")}</p>`;
     return;
   }
 
@@ -1833,8 +2180,8 @@ function renderChatHistory() {
       return `
         <button class="hist${isActive ? " is-active" : ""}${entry.isDraft ? " is-draft" : ""}" type="button" data-chat-id="${escapeHtml(entry.id)}">
           <div class="top">
-            <span class="htitle">${escapeHtml(entry.isDraft ? "지금 대화" : entry.title)}</span>
-            <span class="htime">${escapeHtml(entry.isDraft ? "진행 중" : formatHistoryTime(entry.updatedAt || entry.createdAt))}</span>
+            <span class="htitle">${escapeHtml(entry.isDraft ? t("nowChat") : entry.title)}</span>
+            <span class="htime">${escapeHtml(entry.isDraft ? t("inProgress") : formatHistoryTime(entry.updatedAt || entry.createdAt))}</span>
           </div>
           <div class="hsnip">${escapeHtml(entry.snippet)}</div>
         </button>
@@ -2007,6 +2354,10 @@ function loadState() {
 function normalizePersistedState(value) {
   if (!value || typeof value !== "object") return {};
   const normalized = { ...value };
+
+  if (!SUPPORTED_LANGUAGES.includes(normalized.language)) {
+    normalized.language = DEFAULT_LANGUAGE;
+  }
 
   if (!normalized.navi && normalized.nabi) {
     normalized.navi = normalized.nabi;

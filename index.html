@@ -28,26 +28,26 @@
   <body>
     <div class="device">
       <!-- 1 · 온보딩 -->
-      <section class="flow-screen flow-screen--active" id="welcomeScreen" aria-label="나비의 첫 인사">
-        <img class="hero cat-breathing" src="./assets/navi.png" alt="나비" />
+      <section class="flow-screen flow-screen--active" id="welcomeScreen" aria-label="나비의 첫 인사" data-i18n-aria-label="welcomeAria">
+        <img class="hero cat-breathing" src="./assets/navi.png" alt="나비" data-i18n-alt="naviAlt" />
         <div class="greet">
-          <h1 class="nabi-voice" id="welcomeText">안녕, 나는 오늘<br />널 만나서 기분이 좋아</h1>
+          <h1 class="nabi-voice" id="welcomeText" data-i18n="welcomeText">안녕, 나는 오늘<br />널 만나서 기분이 좋아</h1>
           <svg class="squiggle" viewBox="0 0 120 10" aria-hidden="true">
             <path d="M2 6 Q 17 1, 32 6 T 62 6 T 92 6 T 118 5" />
           </svg>
-          <p class="q nabi-voice">네 기분은 어때?</p>
+          <p class="q nabi-voice" data-i18n="moodQuestion">네 기분은 어때?</p>
           <span class="cursor-blink" id="welcomeCursor" aria-hidden="true"></span>
         </div>
         <div class="mood-wrap">
           <div class="mood-row">
-            <button class="mood good" type="button" data-mood="good">오늘은<br />컨디션이 좋네</button>
-            <button class="mood meh" type="button" data-mood="meh">오늘<br />그저 그래</button>
+            <button class="mood good" type="button" data-mood="good" data-i18n="moodGood">오늘은<br />컨디션이 좋네</button>
+            <button class="mood meh" type="button" data-mood="meh" data-i18n="moodMeh">오늘<br />그저 그래</button>
           </div>
-          <div class="or-line">또는 직접 들려줘</div>
+          <div class="or-line" data-i18n="freePromptLabel">또는 직접 들려줘</div>
           <form class="free-row" id="welcomeForm">
-            <label class="sr-only" for="welcomeInput">오늘의 기분</label>
-            <input class="input" id="welcomeInput" type="text" autocomplete="off" placeholder="네 기분을 입력해봐" />
-            <button class="send-mini" type="submit" aria-label="보내기">↑</button>
+            <label class="sr-only" for="welcomeInput" data-i18n="welcomeInputLabel">오늘의 기분</label>
+            <input class="input" id="welcomeInput" type="text" autocomplete="off" placeholder="네 기분을 입력해봐" data-i18n-placeholder="welcomeInputPlaceholder" />
+            <button class="send-mini" type="submit" aria-label="보내기" data-i18n-aria-label="sendAria">↑</button>
           </form>
           <button class="btn btn-google" id="welcomeGoogle" type="button" style="margin-top: 14px">
             <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
@@ -56,159 +56,159 @@
               <path fill="#FBBC05" d="M10.4 28.6c-.5-1.4-.7-2.9-.7-4.6s.3-3.2.7-4.6l-7.9-6.1C.9 16.3 0 20 0 24s.9 7.7 2.5 10.7l7.9-6.1z" />
               <path fill="#34A853" d="M24 48c6.3 0 11.6-2.1 15.5-5.7l-7.2-5.6c-2 1.4-4.6 2.2-8.3 2.2-6.4 0-11.8-4.1-13.6-9.9l-7.9 6.1C6.4 42.6 14.6 48 24 48z" />
             </svg>
-            Google로 계속하기
+            <span data-i18n="googleContinue">Google로 계속하기</span>
           </button>
-          <button class="welcome-skip" id="welcomeSkip" type="button">로그인 없이 둘러보기</button>
+          <button class="welcome-skip" id="welcomeSkip" type="button" data-i18n="guestContinue">로그인 없이 둘러보기</button>
         </div>
       </section>
 
       <!-- 2 · 나비의 응답 -->
-      <section class="flow-screen" id="responseScreen" aria-label="나비의 응답">
+      <section class="flow-screen" id="responseScreen" aria-label="나비의 응답" data-i18n-aria-label="responseAria">
         <img class="hero cat-breathing" src="./assets/navi.png" alt="" />
         <div class="bubble nabi-voice" id="respText"></div>
         <div class="resp-cta">
-          <button class="btn btn-primary" id="responseContinue" type="button">나비와 계속하기</button>
+          <button class="btn btn-primary" id="responseContinue" type="button" data-i18n="responseContinue">나비와 계속하기</button>
         </div>
       </section>
 
       <!-- 3 · 프로필 입력 (로그인 후) -->
-      <section class="flow-screen" id="profileScreen" aria-label="프로필 설정">
+      <section class="flow-screen" id="profileScreen" aria-label="프로필 설정" data-i18n-aria-label="profileAria">
         <div class="profile-head">
           <img class="avatar" src="./assets/navi-face.png" alt="" />
-          <h2 class="nabi-voice">조금만 알려줄래?</h2>
+          <h2 class="nabi-voice" data-i18n="profileTitle">조금만 알려줄래?</h2>
         </div>
         <div class="field">
-          <label for="profileUserName">나를 뭐라고 부르면 좋을까? <span class="hint">(닉네임)</span></label>
-          <input class="input" id="profileUserName" type="text" autocomplete="name" placeholder="예: 정연" maxlength="12" />
+          <label for="profileUserName" data-i18n="profileUserLabel">나를 뭐라고 부르면 좋을까? <span class="hint">(닉네임)</span></label>
+          <input class="input" id="profileUserName" type="text" autocomplete="name" placeholder="예: 정연" maxlength="12" data-i18n-placeholder="profileUserPlaceholder" />
         </div>
         <div class="field">
-          <label for="profileCatName">이 아이의 이름도 지어줄래? <span class="hint">(기본: 나비)</span></label>
+          <label for="profileCatName" data-i18n="profileCatLabel">이 아이의 이름도 지어줄래? <span class="hint">(기본: 나비)</span></label>
           <input class="input" id="profileCatName" type="text" autocomplete="off" value="나비" maxlength="12" />
         </div>
         <div class="profile-cta">
-          <button class="btn btn-primary" id="profileSubmit" type="button">나비와 시작하기</button>
+          <button class="btn btn-primary" id="profileSubmit" type="button" data-i18n="profileStart">나비와 시작하기</button>
         </div>
       </section>
 
       <!-- 4 · 메인 앱 -->
       <div class="app-shell is-hidden" id="appShell">
         <header class="app-top">
-          <button class="ham" id="openDrawer" type="button" aria-label="메뉴">☰</button>
+          <button class="ham" id="openDrawer" type="button" aria-label="메뉴" data-i18n-aria-label="menuAria">☰</button>
           <div class="app-title">
-            <div class="t">안녕 나비야</div>
-            <div class="sub" id="appSub">새로운 대화</div>
+            <div class="t" data-i18n="appTitle">안녕 나비야</div>
+            <div class="sub" id="appSub" data-i18n="appSubNew">새로운 대화</div>
           </div>
           <div class="app-actions">
-            <button class="top-navi-btn" id="openNavi" type="button" data-view="navi" aria-label="반려묘 프로필">
+            <button class="top-navi-btn" id="openNavi" type="button" data-view="navi" aria-label="반려묘 프로필" data-i18n-aria-label="naviProfileAria">
               <img src="./assets/navi-face.png" alt="" />
             </button>
-            <button class="top-me-btn" id="openMe" type="button" data-view="me" aria-label="마이페이지">👤</button>
+            <button class="top-me-btn" id="openMe" type="button" data-view="me" aria-label="마이페이지" data-i18n-aria-label="meAria">👤</button>
           </div>
         </header>
 
         <div class="app-mid">
           <div class="app-empty" id="appEmpty">
             <img class="hero cat-breathing" src="./assets/navi.png" alt="" />
-            <p class="greet-line nabi-voice" id="greetLine">안녕,<br />오늘 하루는 어땠어?</p>
-            <p class="greet-sub">아래에 편하게 적어줘 🐾</p>
+            <p class="greet-line nabi-voice" id="greetLine" data-i18n="greetLine">안녕,<br />오늘 하루는 어땠어?</p>
+            <p class="greet-sub" data-i18n="greetSub">아래에 편하게 적어줘 🐾</p>
           </div>
 
-          <section class="view view--chat is-active" id="chatView" aria-label="나비와 대화">
+          <section class="view view--chat is-active" id="chatView" aria-label="나비와 대화" data-i18n-aria-label="chatAria">
             <ol class="chat-log chat-body" id="chatLog" aria-live="polite"></ol>
 
-            <section class="chat-setup is-hidden" id="chatSetup" aria-label="로그인 후 이름 설정">
+            <section class="chat-setup is-hidden" id="chatSetup" aria-label="로그인 후 이름 설정" data-i18n-aria-label="setupAria">
               <div>
-                <p class="eyebrow" id="chatSetupStep">첫 인사</p>
-                <h3 id="chatSetupTitle">내가 너를 뭐라고 부르면 될까?</h3>
-                <p class="privacy-note" id="chatSetupDescription">이름은 나비가 대화할 때만 다정하게 불러줄게요.</p>
+                <p class="eyebrow" id="chatSetupStep" data-i18n="setupFirstStep">첫 인사</p>
+                <h3 id="chatSetupTitle" data-i18n="setupUserTitle">내가 너를 뭐라고 부르면 될까?</h3>
+                <p class="privacy-note" id="chatSetupDescription" data-i18n="setupDefaultDescription">이름은 나비가 대화할 때만 다정하게 불러줄게요.</p>
               </div>
               <form class="chat-setup-form" id="chatSetupForm">
-                <label class="sr-only" for="chatSetupInput">이름 입력</label>
-                <input id="chatSetupInput" type="text" autocomplete="off" placeholder="편한 이름을 적어볼래?" />
+                <label class="sr-only" for="chatSetupInput" data-i18n="setupInputLabel">이름 입력</label>
+                <input id="chatSetupInput" type="text" autocomplete="off" placeholder="편한 이름을 적어볼래?" data-i18n-placeholder="setupUserPlaceholder" />
                 <div class="chat-setup-actions">
-                  <button type="submit" id="chatSetupSubmit">다음</button>
-                  <button class="secondary-button" id="chatSetupSkip" type="button">건너뛰기</button>
+                  <button type="submit" id="chatSetupSubmit" data-i18n="next">다음</button>
+                  <button class="secondary-button" id="chatSetupSkip" type="button" data-i18n="skip">건너뛰기</button>
                 </div>
               </form>
             </section>
 
-            <div class="quick-actions is-hidden" aria-label="빠른 입력">
-              <button data-prompt="어제 6시간 잤고 오늘은 조금 피곤해.">수면 체크</button>
-              <button data-prompt="오늘 20분 걸었고 기분은 괜찮아.">활동 체크</button>
-              <button data-prompt="요즘 집중이 잘 안 되고 마음이 불안해.">마음 체크</button>
+            <div class="quick-actions is-hidden" aria-label="빠른 입력" data-i18n-aria-label="quickActionsAria">
+              <button data-prompt="어제 6시간 잤고 오늘은 조금 피곤해." data-prompt-key="quickSleepPrompt" data-i18n="quickSleep">수면 체크</button>
+              <button data-prompt="오늘 20분 걸었고 기분은 괜찮아." data-prompt-key="quickActivityPrompt" data-i18n="quickActivity">활동 체크</button>
+              <button data-prompt="요즘 집중이 잘 안 되고 마음이 불안해." data-prompt-key="quickMindPrompt" data-i18n="quickMind">마음 체크</button>
             </div>
 
-            <section class="footprint-draft is-hidden" id="footprintDraft" aria-label="오늘의 발자국 저장">
+            <section class="footprint-draft is-hidden" id="footprintDraft" aria-label="오늘의 발자국 저장" data-i18n-aria-label="footprintDraftAria">
               <div>
-                <p class="eyebrow">오늘의 발자국</p>
-                <h3>나비가 이렇게 남겨볼까?</h3>
+                <p class="eyebrow" data-i18n="footprintToday">오늘의 발자국</p>
+                <h3 data-i18n="footprintTitle">나비가 이렇게 남겨볼까?</h3>
               </div>
               <dl class="footprint-grid">
-                <div><dt>감정</dt><dd id="draftMood">미입력</dd></div>
-                <div><dt>수면</dt><dd id="draftSleep">미입력</dd></div>
-                <div><dt>활동</dt><dd id="draftActivity">미입력</dd></div>
-                <div><dt>추천 루틴</dt><dd id="draftRoutine">쉬기</dd></div>
+                <div><dt data-i18n="mood">감정</dt><dd id="draftMood">미입력</dd></div>
+                <div><dt data-i18n="sleep">수면</dt><dd id="draftSleep">미입력</dd></div>
+                <div><dt data-i18n="activity">활동</dt><dd id="draftActivity">미입력</dd></div>
+                <div><dt data-i18n="routine">추천 루틴</dt><dd id="draftRoutine">쉬기</dd></div>
               </dl>
               <p class="navi-note" id="draftNaviNote"></p>
               <label class="note-field">
-                오늘 한 줄
-                <input id="draftUserNote" maxlength="80" placeholder="예: 오늘은 조금 느린 하루였다." />
+                <span data-i18n="todayNote">오늘 한 줄</span>
+                <input id="draftUserNote" maxlength="80" placeholder="예: 오늘은 조금 느린 하루였다." data-i18n-placeholder="todayNotePlaceholder" />
               </label>
               <div class="draft-actions">
-                <button class="secondary-button" id="saveFootprint" type="button">발자국 남기기</button>
-                <button class="secondary-button" id="skipFootprint" type="button">오늘은 넘기기</button>
+                <button class="secondary-button" id="saveFootprint" type="button" data-i18n="saveFootprint">발자국 남기기</button>
+                <button class="secondary-button" id="skipFootprint" type="button" data-i18n="skipFootprint">오늘은 넘기기</button>
               </div>
             </section>
           </section>
 
-          <section class="view" id="naviView" aria-label="반려묘 프로필">
+          <section class="view" id="naviView" aria-label="반려묘 프로필" data-i18n-aria-label="naviProfileAria">
             <div class="navi-profile">
               <div class="navi-profile-hero">
                 <img class="navi-profile-avatar" src="./assets/navi-face.png" alt="" />
               </div>
-              <p class="eyebrow">반려묘 프로필</p>
+              <p class="eyebrow" data-i18n="naviProfile">반려묘 프로필</p>
               <div class="navi-profile-name-row" id="naviProfileNameRow">
                 <h2 class="navi-profile-name" id="naviProfileName">나비</h2>
-                <button class="navi-profile-edit" id="naviNameEditBtn" type="button">수정</button>
+                <button class="navi-profile-edit" id="naviNameEditBtn" type="button" data-i18n="edit">수정</button>
               </div>
               <form class="navi-profile-edit-form is-hidden" id="naviNameEditForm">
-                <label class="sr-only" for="naviNameInput">고양이 이름</label>
-                <input id="naviNameInput" type="text" maxlength="12" autocomplete="off" placeholder="고양이 이름" />
+                <label class="sr-only" for="naviNameInput" data-i18n="catNameLabel">고양이 이름</label>
+                <input id="naviNameInput" type="text" maxlength="12" autocomplete="off" placeholder="고양이 이름" data-i18n-placeholder="catNamePlaceholder" />
                 <div class="navi-profile-edit-actions">
-                  <button type="submit">저장</button>
-                  <button class="secondary-button" id="naviNameEditCancel" type="button">취소</button>
+                  <button type="submit" data-i18n="save">저장</button>
+                  <button class="secondary-button" id="naviNameEditCancel" type="button" data-i18n="cancel">취소</button>
                 </div>
               </form>
               <dl class="navi-profile-meta">
                 <div>
-                  <dt>생일</dt>
+                  <dt data-i18n="birthday">생일</dt>
                   <dd id="naviProfileBirthday">—</dd>
-                  <dd class="navi-profile-hint">첫 만남한 날이에요</dd>
+                  <dd class="navi-profile-hint" data-i18n="birthdayHint">첫 만남한 날이에요</dd>
                 </div>
               </dl>
             </div>
           </section>
 
-          <section class="view" id="footprintsView" aria-label="최근 발자국">
+          <section class="view" id="footprintsView" aria-label="최근 발자국" data-i18n-aria-label="recentFootprintsAria">
             <div class="panel-head">
-              <p class="eyebrow">최근 7일</p>
-              <h2>나비의 기억</h2>
+              <p class="eyebrow" data-i18n="recent7Days">최근 7일</p>
+              <h2 data-i18n="naviMemory">나비의 기억</h2>
             </div>
             <div class="footprint-list" id="footprintList"></div>
           </section>
 
-          <section class="view" id="meView" aria-label="내 정보">
+          <section class="view" id="meView" aria-label="내 정보" data-i18n-aria-label="mePanelAria">
             <div class="panel-head">
-              <p class="eyebrow">나</p>
-              <h2>마이페이지</h2>
+              <p class="eyebrow" data-i18n="me">나</p>
+              <h2 data-i18n="myPage">마이페이지</h2>
             </div>
 
             <div class="account-card is-hidden" id="accountCard" aria-live="polite">
-              <p class="account-label">닉네임</p>
+              <p class="account-label" data-i18n="nickname">닉네임</p>
               <p class="account-nickname" id="authDisplayName">—</p>
-              <p class="account-label">Google 계정</p>
+              <p class="account-label" data-i18n="googleAccount">Google 계정</p>
               <p class="account-email" id="authEmail"></p>
-              <p class="account-note">발자국 요약이 이 계정에 동기화돼요.</p>
+              <p class="account-note" data-i18n="accountNote">발자국 요약이 이 계정에 동기화돼요.</p>
               <div class="account-actions">
                 <span class="privacy-chip" id="storageMode">클라우드 저장</span>
               </div>
@@ -216,16 +216,27 @@
 
             <div class="me-actions" id="meLoginSection">
               <h3 class="me-login-title" id="authTitle">Google 로그인</h3>
-              <button class="btn btn-google" id="googleLogin" type="button">Google 로그인</button>
+              <button class="btn btn-google" id="googleLogin" type="button" data-i18n="googleLogin">Google 로그인</button>
+            </div>
+
+            <div class="language-setting">
+              <label for="languageSelect">
+                <span data-i18n="languageLabel">언어</span>
+                <select id="languageSelect" name="language">
+                  <option value="ko" data-i18n="languageKo">한국어</option>
+                  <option value="en" data-i18n="languageEn">English</option>
+                </select>
+              </label>
+              <p data-i18n="languageHint">지금은 UI 골격과 나비 응답 언어만 먼저 바꿔요.</p>
             </div>
 
             <form class="profile-form" id="profileForm">
               <label>
-                이름
-                <input name="name" autocomplete="name" placeholder="정연" />
+                <span data-i18n="name">이름</span>
+                <input name="name" autocomplete="name" placeholder="정연" data-i18n-placeholder="profileUserPlaceholder" />
               </label>
               <label>
-                현재 목표
+                <span data-i18n="goal">현재 목표</span>
                 <select name="goal">
                   <option value="정서적 안정">정서적 안정</option>
                   <option value="수면 리듬 개선">수면 리듬 개선</option>
@@ -234,19 +245,19 @@
                 </select>
               </label>
               <label>
-                선호 대화 톤
+                <span data-i18n="tone">선호 대화 톤</span>
                 <select name="tone">
                   <option value="다정하고 차분하게">다정하고 차분하게</option>
                   <option value="짧고 실용적으로">짧고 실용적으로</option>
                   <option value="밝고 가볍게">밝고 가볍게</option>
                 </select>
               </label>
-              <button type="submit">저장하기</button>
+              <button type="submit" data-i18n="saveProfile">저장하기</button>
             </form>
 
             <div class="account-bottom-actions is-hidden" id="accountBottomActions" aria-live="polite">
-              <button class="btn btn-ghost" id="meLogoutButton" type="button">로그아웃</button>
-              <button class="btn btn-danger" id="deleteAccountButton" type="button">회원탈퇴</button>
+              <button class="btn btn-ghost" id="meLogoutButton" type="button" data-i18n="logout">로그아웃</button>
+              <button class="btn btn-danger" id="deleteAccountButton" type="button" data-i18n="deleteAccount">회원탈퇴</button>
             </div>
           </section>
         </div>
@@ -256,40 +267,40 @@
         <div class="dock">
           <form class="composer" id="chatForm">
             <div class="row">
-              <textarea id="messageInput" rows="1" placeholder="무엇이든 편하게 적어줘" required></textarea>
-              <button class="go" type="submit" aria-label="보내기">↑</button>
+              <textarea id="messageInput" rows="1" placeholder="무엇이든 편하게 적어줘" required data-i18n-placeholder="messagePlaceholder"></textarea>
+              <button class="go" type="submit" aria-label="보내기" data-i18n-aria-label="sendAria">↑</button>
             </div>
           </form>
         </div>
       </div>
 
       <div class="scrim" id="scrim" aria-hidden="true"></div>
-      <aside class="drawer" id="drawer" aria-label="이전 대화">
+      <aside class="drawer" id="drawer" aria-label="이전 대화" data-i18n-aria-label="drawerAria">
         <div class="dw-head">
-          <div class="ttl">안녕 나비야</div>
+          <div class="ttl" data-i18n="appTitle">안녕 나비야</div>
         </div>
         <div class="emo-card">
-          <div class="h">🐾 오늘의 나비</div>
+          <div class="h" data-i18n="drawerToday">🐾 오늘의 나비</div>
           <div class="b" id="drawerStatus">
             <span id="bondLabel">유대감 42%</span> · <span id="naviLevelLabel">Lv.1 새끼 나비</span>
           </div>
         </div>
         <button class="dw-new-chat" id="newChatDrawer" type="button">
           <span aria-hidden="true">✎</span>
-          새 채팅
+          <span data-i18n="newChat">새 채팅</span>
         </button>
         <label class="dw-search" for="chatHistorySearch">
           <span aria-hidden="true">🔍</span>
-          <input id="chatHistorySearch" type="search" placeholder="지난 대화 검색하기..." autocomplete="off" />
+          <input id="chatHistorySearch" type="search" placeholder="지난 대화 검색하기..." autocomplete="off" data-i18n-placeholder="searchHistoryPlaceholder" />
         </label>
-        <div class="dw-sec">최근 대화</div>
+        <div class="dw-sec" data-i18n="recentChats">최근 대화</div>
         <div class="dw-scroll" id="chatHistoryList"></div>
       </aside>
     </div>
 
     <div class="navi-walker is-hidden" id="naviWalker" aria-hidden="true">
       <img id="naviWalkerImage" src="./assets/navi_rest.png" data-still="./assets/navi_rest.png" alt="" />
-      <span class="navi-bubble" id="naviBubble">나비가 산책 중이에요.</span>
+      <span class="navi-bubble" id="naviBubble" data-i18n="naviWalking">나비가 산책 중이에요.</span>
     </div>
 
     <script src="./app.js?v=navi-input-cat" type="module"></script>
