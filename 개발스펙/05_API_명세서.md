@@ -1,6 +1,6 @@
-# 🦋 안녕나비야 - API 명세서 (MVP)
+# 안녕나비야 - API 명세서 (MVP)
 
-**Base URL**: `https://api.hi-navi.com/v1`  
+**Base URL**: `https://www.hellopurrfly.com/`  
 **데이터 포맷**: JSON  
 **인증**: Bearer Token (JWT) - 로그인 유저. 게스트는 Header에 `Device-ID` 사용
 
@@ -19,10 +19,11 @@
   {
     "user_id": "google_12345",
     "access_token": "jwt_access_token_string",
-    "nickname": "정연",
+    "nickname": null,
     "is_new_user": true
   }
   ```
+  > `nickname`: 사용자가 온보딩·마이페이지에서 직접 설정한 애칭 (`profiles.display_name`). 미설정 시 `null`, 설정 후에는 저장된 값을 그대로 반환.
 
 ### 1.2 게스트 데이터 마이그레이션 (매우 중요)
 - **POST** `/auth/migrate`
@@ -101,7 +102,23 @@
 
 ## 5. 유저 설정
 
-- **PATCH** `/user/profile` → 닉네임 수정
+### 5.1 프로필 수정 (닉네임)
+- **PATCH** `/user/profile`
+- Request:
+  ```json
+  {
+    "nickname": "사용자가 입력한 애칭"
+  }
+  ```
+- Response:
+  ```json
+  {
+    "nickname": "사용자가 입력한 애칭"
+  }
+  ```
+  > `nickname`은 고정 예시값이 아니라, 요청 시 사용자가 입력한 값이 `profiles.display_name`에 저장되고 이후 모든 API 응답·AI 호칭에 반영됩니다.
+
+### 5.2 회원 탈퇴
 - **DELETE** `/user/account` → 회원 탈퇴 (Hard Delete)
 
 ---

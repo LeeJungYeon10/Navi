@@ -197,7 +197,6 @@ const TRANSLATIONS = {
     chattingWithCat: "{catName}와 대화 중",
     catProfileSub: "{catName} 프로필",
     bondLabel: "유대감 {bond}%",
-    levelLabel: "Lv.{level} {name}",
     noFootprintsTitle: "아직 남긴 발자국이 없어요",
     noFootprintsBody: "나비와 오늘을 이야기한 뒤 발자국을 남겨보세요.",
     nowChat: "지금 대화",
@@ -317,7 +316,6 @@ const TRANSLATIONS = {
     chattingWithCat: "Chatting with {catName}",
     catProfileSub: "{catName} profile",
     bondLabel: "Bond {bond}%",
-    levelLabel: "Lv.{level} {name}",
     noFootprintsTitle: "No footprints yet",
     noFootprintsBody: "Talk with Navi about today, then leave a footprint.",
     nowChat: "Current chat",
@@ -343,7 +341,7 @@ const LANGUAGE_LABELS = {
   },
 };
 
-const DAILY_BOND_LIMIT = 12;
+const DAILY_BOND_LIMIT = 10;
 const DEFAULT_CAT_ID = "cat-navi";
 const DEFAULT_NAVI_STATE = {
   dailyBondDate: null,
@@ -351,7 +349,6 @@ const DEFAULT_NAVI_STATE = {
   lastVisitDate: null,
   streak: 0,
   lastStreakBonusDate: null,
-  lastLevelMessage: 1,
   birthday: null,
   name: null,
 };
@@ -360,12 +357,6 @@ const DEFAULT_CAT_SLOT = {
   ...DEFAULT_NAVI_STATE,
   avatar: "navi",
 };
-const NAVI_LEVELS = [
-  { level: 1, minBond: 0, name: "새끼 나비", copy: "처음 만난 나비가 조심스럽게 곁에 앉아 있어요." },
-  { level: 2, minBond: 30, name: "어린 나비", copy: "나비가 조금 더 편하게 먼저 다가오고 있어요." },
-  { level: 3, minBond: 65, name: "청년 나비", copy: "나비가 오늘의 패턴을 더 또렷하게 기억하려고 해요." },
-];
-
 const initialState = {
   language: DEFAULT_LANGUAGE,
   profile: { name: "", goal: "정서적 안정", tone: "다정하고 차분하게", focus: [] },
@@ -497,7 +488,6 @@ const els = {
   chatHistoryList: document.querySelector("#chatHistoryList"),
   chatHistorySearch: document.querySelector("#chatHistorySearch"),
   bondLabel: document.querySelector("#bondLabel"),
-  naviLevelLabel: document.querySelector("#naviLevelLabel"),
   chatSetup: document.querySelector("#chatSetup"),
   chatSetupStep: document.querySelector("#chatSetupStep"),
   chatSetupTitle: document.querySelector("#chatSetupTitle"),
@@ -1485,8 +1475,9 @@ function updateDayContext(context) {
   else if (state.day.activityMinutes !== null && state.day.activityMinutes >= 20 && state.day.mood !== "긴장") state.day.energy = "좋음";
   else if (context.mood === "anxious") state.day.energy = "주의";
 
-  const contextPoints = [context.sleepHours, context.activityMinutes, context.mood].filter(Boolean).length;
-  addBond(Math.max(2, contextPoints * 3));
+  addBond(2);
+  if (context.sleepHours !== null) addBond(1);
+  if (context.activityMinutes !== null) addBond(1);
 }
 
 function buildFootprintDraft(context = {}) {
@@ -1615,7 +1606,6 @@ function addBond(points) {
     state.navi.dailyBondGain = 0;
   }
 
-  const beforeLevel = getNaviGrowth().level;
   const remaining = Math.max(0, DAILY_BOND_LIMIT - state.navi.dailyBondGain);
   const applied = Math.min(points, remaining, 100 - state.day.bond);
   if (applied <= 0) return 0;
@@ -1623,18 +1613,7 @@ function addBond(points) {
   state.day.bond = Math.min(100, state.day.bond + applied);
   state.navi.dailyBondGain += applied;
 
-  const growth = getNaviGrowth();
-  if (growth.level > beforeLevel && state.navi.lastLevelMessage !== growth.level) {
-    state.navi.lastLevelMessage = growth.level;
-    addCatMessage(`${growth.name}가 되었어. ${catName()}가 너랑 조금 더 가까워진 것 같아.`);
-  }
-
   return applied;
-}
-
-function getNaviGrowth() {
-  const bond = Number(state.day.bond) || 0;
-  return [...NAVI_LEVELS].reverse().find((level) => bond >= level.minBond) || NAVI_LEVELS[0];
 }
 
 function getCharacterAge(birthday) {
@@ -1766,14 +1745,12 @@ function renderChat() {
 }
 
 function renderMetrics() {
-  const growth = getNaviGrowth();
   const labels = getLabels();
   if (els.sleepMetric) els.sleepMetric.textContent = state.day.sleepHours === null ? labels.sleep.unknown : getLanguage() === "ko" ? `${state.day.sleepHours}시간` : `${state.day.sleepHours}h`;
   if (els.activityMetric) els.activityMetric.textContent = state.day.activityMinutes === null ? labels.activity.unknown : getLanguage() === "ko" ? `${state.day.activityMinutes}분` : `${state.day.activityMinutes}m`;
   if (els.moodMetric) els.moodMetric.textContent = state.day.mood || labels.mood.unknown;
   if (els.energyMetric) els.energyMetric.textContent = state.day.energy;
   if (els.bondLabel) els.bondLabel.textContent = t("bondLabel", { bond: state.day.bond });
-  if (els.naviLevelLabel) els.naviLevelLabel.textContent = t("levelLabel", { level: growth.level, name: growth.name });
 }
 
 function renderInsights() {
