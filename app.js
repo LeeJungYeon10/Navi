@@ -561,6 +561,7 @@ let setupStep = "userName";
 let currentView = "chat";
 const OAUTH_PENDING_KEY = "navi-oauth-pending";
 let authBootstrapComplete = false;
+let authBootstrapFallbackTimer = null;
 let finishingAuthSession = null;
 let naviNameEditing = false;
 
@@ -630,7 +631,11 @@ function hasStoredAuthSession() {
 }
 
 function shouldRestoreOnLoad() {
-  return hasStoredAuthSession() || Boolean(state.flags?.appEntered);
+  return shouldSkipWelcomeFlow() || Boolean(state.flags?.appEntered);
+}
+
+function shouldSkipWelcomeFlow() {
+  return hasStoredAuthSession() || hasAuthSession(authSession);
 }
 
 function prepareRestoredAppShell() {
@@ -817,12 +822,17 @@ function cleanAuthParamsFromUrl() {
 
 async function finishAuthSession(session, { hydrate = true } = {}) {
   if (!session?.user) return false;
+  window.clearTimeout(authBootstrapFallbackTimer);
+  authBootstrapFallbackTimer = null;
   if (finishingAuthSession) return finishingAuthSession;
   if (authSession?.user?.id === session.user.id && authBootstrapped) {
     authSession = session;
     renderAuth(session);
     if (hasCompletedLoginSetup()) enterApp();
-    else showProfileScreen();
+    else {
+      enterApp();
+      startSetup();
+    }
     return true;
   }
 
@@ -841,8 +851,14 @@ async function finishAuthSession(session, { hydrate = true } = {}) {
       }
     }
 
-    if (hasCompletedLoginSetup()) enterApp();
-    else showProfileScreen();
+    if (hasCompletedLoginSetup()) {
+      enterApp();
+    } else if (hasAuthSession(session)) {
+      enterApp();
+      startSetup();
+    } else {
+      showProfileScreen();
+    }
 
     persist();
     render();
@@ -925,6 +941,7 @@ function initWelcome() {
   const restoringApp = shouldRestoreOnLoad();
   if (returningAuth) {
     setWelcomeGuestAvailable(false);
+    prepareRestoredAppShell();
   }
 
   const textEl = document.querySelector("#welcomeText");
@@ -1199,6 +1216,36 @@ function bindEvents() {
   });
 }
 
+function scheduleAuthBootstrapFallback() {
+  window.clearTimeout(authBootstrapFallbackTimer);
+  authBootstrapFallbackTimer = window.setTimeout(async () => {
+    authBootstrapFallbackTimer = null;
+    if (authSession) return;
+
+    const client = await getSupabaseClient();
+    if (!client) {
+      document.body.classList.remove("is-auth-booting");
+      return;
+    }
+
+    const { data, error } = await client.auth.getSession();
+    if (error) console.error("Auth bootstrap fallback failed:", error);
+    if (data?.session) {
+      await finishAuthSession(data.session, { hydrate: !authHydrated });
+      authBootstrapped = true;
+      return;
+    }
+
+    if (!hasStoredAuthSession()) return;
+
+    document.body.classList.remove("is-auth-booting");
+    showWelcomeFlow();
+    setWelcomeGuestAvailable(true);
+    showWelcomeAuthError("로그인 세션을 불러오지 못했어요. 다시 로그인해 주세요.");
+    renderAuth(null);
+  }, 2500);
+}
+
 async function bootstrapApp() {
   const client = await getSupabaseClient();
   if (!isSupabaseConfigured() || !client) {
@@ -1215,30 +1262,51 @@ async function bootstrapApp() {
   client.auth.onAuthStateChange((event, session) => handleAuthStateChange(event, session));
 
   const oauthErrorMessage = getOAuthErrorMessage();
-  const session = oauthErrorMessage ? null : await resolveAuthSession(client);
+  let session = oauthErrorMessage ? null : await resolveAuthSession(client);
 
-  document.body.classList.remove("is-auth-booting");
+  if (!session && hasStoredAuthSession()) {
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 100 * (attempt + 1)));
+      const { data, error } = await client.auth.getSession();
+      if (error) console.error("getSession retry failed:", error);
+      if (data.session) {
+        session = data.session;
+        break;
+      }
+    }
+  }
 
   if (session) {
     if (!authSession) await finishAuthSession(session, { hydrate: !authHydrated });
     authBootstrapped = true;
+    renderAuth(authSession);
   } else if (authSession) {
     authBootstrapped = true;
+    document.body.classList.remove("is-auth-booting");
+    renderAuth(authSession);
   } else if (oauthErrorMessage) {
+    document.body.classList.remove("is-auth-booting");
     clearOAuthPending();
     cleanAuthParamsFromUrl();
     showWelcomeFlow();
     renderAuth(null);
     showWelcomeAuthError(oauthErrorMessage);
   } else if (isOAuthAttemptInProgress()) {
+    document.body.classList.remove("is-auth-booting");
     enterApp();
     clearOAuthPending();
     showWelcomeAuthError("로그인 세션을 불러오지 못했어요. 다시 시도해 주세요.");
     renderAuth(null);
+  } else if (shouldSkipWelcomeFlow()) {
+    prepareRestoredAppShell();
+    renderAuth(null);
+    scheduleAuthBootstrapFallback();
   } else if (state.flags?.appEntered) {
+    document.body.classList.remove("is-auth-booting");
     enterApp();
     renderAuth(null);
   } else {
+    document.body.classList.remove("is-auth-booting");
     showWelcomeFlow();
     renderAuth(null);
   }
